@@ -1,0 +1,85 @@
+@keyframes morph {
+	0%,
+	100% {
+		border-radius: 40% 60% 70% 30% / 40% 40% 60% 50%;
+		transform: scale(1) rotate(0deg);
+	}
+	33% {
+		border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%;
+		transform: scale(1.05) rotate(90deg);
+	}
+	66% {
+		border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%;
+		transform: scale(1.03) rotate(180deg);
+	}
+}
+
+@keyframes float {
+	0%,
+	100% {
+		transform: translateY(0) translateX(0) rotate(0deg);
+	}
+	33% {
+		transform: translateY(-20px) translateX(10px) rotate(10deg);
+	}
+	66% {
+		transform: translateY(10px) translateX(-15px) rotate(-5deg);
+	}
+}
+
+@keyframes pulse-slow {
+	0%,
+	100% {
+		opacity: 0.5;
+	}
+	50% {
+		opacity: 0.7;
+	}
+}
+
+.animate-morph {
+	animation: morph 12s ease-in-out infinite;
+}
+
+.animate-morph-delay {
+	animation: morph 14s ease-in-out 2s infinite;
+}
+
+.animate-morph-delay-2 {
+	animation: morph 16s ease-in-out 4s infinite;
+}
+
+.animate-float {
+	animation: float 8s ease-in-out infinite;
+}
+
+.animate-float-delay {
+	animation: float 9s ease-in-out 1s infinite;
+}
+
+.animate-float-delay-2 {
+	animation: float 10s ease-in-out 2s infinite;
+}
+
+.animate-pulse-slow {
+	animation: pulse-slow 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+	width: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: rgba(30, 30, 50, 0.3);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+	background: linear-gradient(to bottom, #4f46e5, #7c3aed);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(to bottom, #6366f1, #8b5cf6);
+}
