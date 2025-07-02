@@ -1,7 +1,14 @@
+from dotenv import load_dotenv
+import os
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
-sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id="YOUR_APP_CLIENT_ID",
+load_dotenv()
+client_id = os.getenv("SPOTIFY_CLIENT_ID")
+
+print(client_id)
+
+sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id="client_id",
                                                            client_secret="YOUR_APP_CLIENT_SECRET"))
 
 results = sp.search(q='weezer', limit=20)
