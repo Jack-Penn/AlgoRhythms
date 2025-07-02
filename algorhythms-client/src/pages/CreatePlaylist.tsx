@@ -1,3 +1,4 @@
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/16/solid";
 import { useState } from "react";
 
 export default function CreatePlaylist() {
@@ -60,7 +61,7 @@ export default function CreatePlaylist() {
 						</label>
 						<input
 							type='text'
-							value={mood}
+							value={activity}
 							onChange={(e) => setActivity(e.target.value)}
 							className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
 							placeholder='Working, Studying, Exercising...'
@@ -100,68 +101,78 @@ export default function CreatePlaylist() {
 							<h3 className='text-xl font-bold text-gray-800'>
 								Customize Weights
 							</h3>
-							<button>{showWeights ? "Hide" : "Show"}</button>
+
+							<button
+								className=' cursor-pointer size-7'
+								onClick={() => setShowWeights((showWeights) => !showWeights)}
+							>
+								{showWeights ? <EyeIcon /> : <EyeSlashIcon />}
+							</button>
 						</div>
 
-						{/* Energy Slider */}
-						<div className='mb-5'>
-							<div className='flex justify-between mb-2'>
-								<label className='block text-gray-700 font-medium'>
-									Energy
-								</label>
-								<span className='text-sm font-medium text-purple-600'>
-									{energy}%
-								</span>
-							</div>
-							<input
-								type='range'
-								min='0'
-								max='100'
-								value={energy}
-								onChange={(e) => setEnergy(parseInt(e.target.value))}
-								className='w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600'
-							/>
-						</div>
+						{showWeights && (
+							<>
+								{/* Energy Slider */}
+								<div className='mb-5'>
+									<div className='flex justify-between mb-2'>
+										<label className='block text-gray-700 font-medium'>
+											Energy
+										</label>
+										<span className='text-sm font-medium text-purple-600'>
+											{energy}%
+										</span>
+									</div>
+									<input
+										type='range'
+										min='0'
+										max='100'
+										value={energy}
+										onChange={(e) => setEnergy(parseInt(e.target.value))}
+										className='w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600'
+									/>
+								</div>
 
-						{/* Danceability Slider */}
-						<div className='mb-5'>
-							<div className='flex justify-between mb-2'>
-								<label className='block text-gray-700 font-medium'>
-									Danceability
-								</label>
-								<span className='text-sm font-medium text-purple-600'>
-									{danceability}%
-								</span>
-							</div>
-							<input
-								type='range'
-								min='0'
-								max='100'
-								value={danceability}
-								onChange={(e) => setDanceability(parseInt(e.target.value))}
-								className='w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600'
-							/>
-						</div>
+								{/* Danceability Slider */}
+								<div className='mb-5'>
+									<div className='flex justify-between mb-2'>
+										<label className='block text-gray-700 font-medium'>
+											Danceability
+										</label>
+										<span className='text-sm font-medium text-purple-600'>
+											{danceability}%
+										</span>
+									</div>
+									<input
+										type='range'
+										min='0'
+										max='100'
+										value={danceability}
+										onChange={(e) => setDanceability(parseInt(e.target.value))}
+										className='w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600'
+									/>
+								</div>
 
-						{/* Acousticness Slider */}
-						<div className='mb-5'>
-							<div className='flex justify-between mb-2'>
-								<label className='block text-gray-700 font-medium'>
-									Acousticness
-								</label>
-								<span className='text-sm font-medium text-purple-600'>
-									{acousticness}%
-								</span>
-							</div>
-							<input
-								type='range'
-								min='0'
-								max='100'
-								value={acousticness}
-								onChange={(e) => setAcousticness(parseInt(e.target.value))}
-								className='w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600'
-							/>
-						</div>
+								{/* Acousticness Slider */}
+								<div className='mb-5'>
+									<div className='flex justify-between mb-2'>
+										<label className='block text-gray-700 font-medium'>
+											Acousticness
+										</label>
+										<span className='text-sm font-medium text-purple-600'>
+											{acousticness}%
+										</span>
+									</div>
+									<input
+										type='range'
+										min='0'
+										max='100'
+										value={acousticness}
+										onChange={(e) => setAcousticness(parseInt(e.target.value))}
+										className='w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600'
+									/>
+								</div>
+							</>
+						)}
 					</div>
 
 					{/* Generate Button */}
