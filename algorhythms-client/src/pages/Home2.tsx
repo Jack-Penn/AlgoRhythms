@@ -1,4 +1,14 @@
+import { useEffect } from "react";
+import { testapi } from "../lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
 function Home() {
+	const queryClient = useQueryClient();
+
+	const testQuery = useQuery({ queryKey: ["test"], queryFn: testapi });
+
+	console.log(testQuery.data);
+
 	return (
 		<div className='min-h-screen bg-gradient-to-br from-indigo-900 to-purple-800 flex flex-col items-center justify-center p-4'>
 			<div className='w-full max-w-md bg-background rounded-2xl shadow-xl overflow-hidden'>
