@@ -4,6 +4,7 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 from typing import List
+import asyncio
 
 # Load environment variables
 load_dotenv(dotenv_path='./secrets.env')
@@ -26,13 +27,6 @@ class PlaylistExample(BaseModel):
     mood: str
     activity: str
     weights: Weights
-    search_query: str
-    title: str
-
-class PlaylistRequestWeights(BaseModel):
-    weights: Weights
-    search_query: str
-    title: str
 
 # Define examples as structured objects
 EXAMPLES: List[PlaylistExample] = [
@@ -49,9 +43,7 @@ EXAMPLES: List[PlaylistExample] = [
             speechiness=0.1,
             tempo=75,
             valence=0.6
-        ),
-        search_query="calm study music",
-        title="Focus & Study 📚"
+        )
     ),
     PlaylistExample(
         mood="energetic",
@@ -66,9 +58,7 @@ EXAMPLES: List[PlaylistExample] = [
             speechiness=0.2,
             tempo=145,
             valence=0.8
-        ),
-        search_query="high energy workout",
-        title="Power Workout 💪🏋️‍♂️"
+        )
     ),
     PlaylistExample(
         mood="melancholic",
@@ -83,9 +73,7 @@ EXAMPLES: List[PlaylistExample] = [
             speechiness=0.05,
             tempo=65,
             valence=0.3
-        ),
-        search_query="melancholic acoustic",
-        title="Acoustic Reflection 🎶💭"
+        )
     )
 ]
 
@@ -95,13 +83,11 @@ def format_playlist_examples(examples: List[PlaylistExample]) -> str:
     for ex in examples:
         formatted.append(
             f"- Mood: \"{ex.mood}\", Activity: \"{ex.activity}\"\n"
-            f"  Weights: {ex.weights.model_dump()}\n"
-            f"  Search: \"{ex.search_query}\"\n"
-            f"  Title: \"{ex.title}\""
+            f"  Weights: {ex.weights.model_dump()}"
         )
     return "\n\n".join(formatted)
 
-def interpret_mood(mood: str, activity: str) -> dict:
+async def generate_weights(mood: str, activity: str) -> Weights:
     """
     Converts mood and activity descriptions into weighted playlist parameters
     using Gemini's structured JSON output.
@@ -111,10 +97,8 @@ def interpret_mood(mood: str, activity: str) -> dict:
         activity: Current activity (e.g., "studying", "working out")
     
     Returns:
-        dict: Structured weights and metadata for playlist generation
+        Weights: Structured weights for playlist generation
     """
-    # Combine mood and activity into a natural language request
-    request_text = f"{mood} mood for {activity}"
     
     feature_definitions = """
     - acousticness (0.0-1.0): Confidence measure of acoustic sounds vs electronic elements.
@@ -152,10 +136,6 @@ def interpret_mood(mood: str, activity: str) -> dict:
     
     Return actual BPM for tempo and dB for loudness (not normalized values).
 
-    Also include:
-        - Search: a text search query term for finding similar playlists
-        - Title: A fun and descriptive title for the playlist, which often includes a few emojis
-    
     Mood: "{mood}"
     Activity: "{activity}"
 
@@ -163,46 +143,47 @@ def interpret_mood(mood: str, activity: str) -> dict:
     {format_playlist_examples(EXAMPLES)}
     """
     
-    # Generate structured response with reasoning disabled
-    response = client.models.generate_content(
+    # Wrap synchronous API call in thread
+    response = await asyncio.to_thread(
+        client.models.generate_content,
         model="gemini-2.5-flash-lite-preview-06-17",
         contents=prompt,
         config={
             "response_mime_type": "application/json",
-            "response_schema": PlaylistRequestWeights,
+            "response_schema": Weights,
         }
     )
     
     # Handle response
     if response.parsed:
-        return response.parsed.model_dump()
+        return response.parsed
     else:
         raise ValueError(f"Failed to parse Gemini response: {response.text}")
 
-# Example usage
-if __name__ == "__main__":
+# Async main function
+async def main():
     test_cases = [
-        # ("focused", "coding session"),
+        ("focused", "coding session"),
         # ("relaxed", "evening wind down"),
-        ("upbeat", "morning routine")
+        # ("upbeat", "morning routine")
     ]
     
     for mood, activity in test_cases:
         print(f"\n{'='*50}")
         print(f"Mood: {mood.upper()}, Activity: {activity.upper()}")
-        result = interpret_mood(mood, activity)
+        weights = await generate_weights(mood, activity)
         
         print("\nWeights:")
-        weights = result["weights"]
-        print(f"- acousticness: {weights['acousticness']:.2f}")
-        print(f"- danceability: {weights['danceability']:.2f}")
-        print(f"- energy: {weights['energy']:.2f}")
-        print(f"- instrumentalness: {weights['instrumentalness']:.2f}")
-        print(f"- liveness: {weights['liveness']:.2f}")
-        print(f"- loudness: {weights['loudness']:.1f} dB")
-        print(f"- speechiness: {weights['speechiness']:.2f}")
-        print(f"- tempo: {weights['tempo']} BPM")
-        print(f"- valence: {weights['valence']:.2f}")
-        
-        print(f"\nSearch Query: {result['search_query']}")
-        print(f"Playlist Title: {result['title']}")
+        print(f"- acousticness: {weights.acousticness:.2f}")
+        print(f"- danceability: {weights.danceability:.2f}")
+        print(f"- energy: {weights.energy:.2f}")
+        print(f"- instrumentalness: {weights.instrumentalness:.2f}")
+        print(f"- liveness: {weights.liveness:.2f}")
+        print(f"- loudness: {weights.loudness:.1f} dB")
+        print(f"- speechiness: {weights.speechiness:.2f}")
+        print(f"- tempo: {weights.tempo} BPM")
+        print(f"- valence: {weights.valence:.2f}")
+
+# Run the async main function
+if __name__ == "__main__":
+    asyncio.run(main())
