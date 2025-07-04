@@ -1,5 +1,5 @@
 import { Navigate, useNavigate } from "react-router-dom";
-import { handleAuthCode } from "../lib/spotify-auth";
+import { handleAuthCode } from "../lib/spotify/auth";
 import { useAuth } from "../auth/AuthProvider";
 import { useEffect, useRef, useState } from "react";
 

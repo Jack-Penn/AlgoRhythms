@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
-import "../lib/spotify-auth";
-import { handleSpotifyLogin } from "../lib/spotify-auth";
+import "../lib/spotify/auth";
+import { handleSpotifyLogin } from "../lib/spotify/auth";
 
 const Login = () => {
 	const { guestLogin } = useAuth();

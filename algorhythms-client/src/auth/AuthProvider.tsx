@@ -5,8 +5,8 @@ import {
 	type PropsWithChildren,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchProfile } from "../lib/spotify-api";
-import type { AccessTokenResponse } from "../lib/spotify-auth";
+import { fetchProfile } from "../lib/spotify/api";
+import type { AccessTokenResponse } from "../lib/spotify/auth";
 import type { LoggedInUser } from "../lib/types";
 
 type ProviderProps = {
