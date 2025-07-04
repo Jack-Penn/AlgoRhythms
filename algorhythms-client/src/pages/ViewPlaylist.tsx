@@ -23,6 +23,13 @@ interface SpotifyEmbedController {
 	loadUri: (uri: string) => void;
 }
 
+interface SpotifyEmbedControllerOptions {
+	width: string;
+	height: string;
+	uri: string;
+	theme: "dark" | undefined;
+}
+
 export default function ViewPlaylist() {
 	const embedRef = useRef<HTMLDivElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -68,10 +75,11 @@ export default function ViewPlaylist() {
 		}
 
 		// Set dimensions based on calculated height
-		const options = {
+		const options: SpotifyEmbedControllerOptions = {
 			width: "100%",
 			height: "475",
 			uri: uri,
+			theme: "dark",
 		};
 
 		iFrameAPI.createController(
