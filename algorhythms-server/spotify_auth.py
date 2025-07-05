@@ -14,7 +14,7 @@ load_dotenv(dotenv_path='./secrets.env')
 client_id = os.getenv("SPOTIFY_CLIENT_ID")
 client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
 
-scope = "user-library-read user-top-read"
+scopes = ["user-library-read", "user-top-read", "playlist-modify-public", "playlist-modify-private"]
 
 # Global variables for Spotify auth
 oauth: SpotifyOAuth | None = None
@@ -34,14 +34,15 @@ def prompt_spotify_login():
         client_secret=client_secret,
         redirect_uri=REDIRECT_URI,
         state=state_check,
-        scope=scope,
-        cache_handler=spotipy.cache_handler.MemoryCacheHandler()  # Use in-memory cache
+        scope="  ".join(scopes),
+        cache_handler=spotipy.cache_handler.MemoryCacheHandler(),  # Use in-memory cache
     )
     auth_url = oauth.get_authorize_url()
     print(f"Opening browser for Spotify login: {auth_url}")
     webbrowser.open(auth_url, new=2, autoraise=True)
 
 def handle_auth_callback(code: str, state: str):
+    global sp
 
     # Validate state
     if(state != state_check):
@@ -50,17 +51,7 @@ def handle_auth_callback(code: str, state: str):
     # Exchange auth code for tokens
     token_info = oauth.get_access_token(code)
     sp = spotipy.Spotify(auth_manager=oauth)
-
     token_obtained_event.set()
-
-    # Get top 10 tracks
-    top_tracks = sp.current_user_top_tracks(limit=10, time_range="medium_term")
-    
-    # Print results
-    print("\nYour Top 10 Tracks:")
-    for idx, track in enumerate(top_tracks["items"]):
-        artists = ", ".join([artist["name"] for artist in track["artists"]])
-        print(f"{idx+1}. {track['name']} by {artists}")
 
 def wait_for_auth(timeout=300):
     """Wait for authentication with keyboard interrupt support"""
