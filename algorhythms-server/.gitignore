@@ -211,3 +211,4 @@ __marimo__/
 
 # Environment Variables
 secrets.env
+spotify_token_cache.txt
