@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
-from typing import List
+from typing import List, cast
 import asyncio
 
 # Load environment variables
@@ -156,7 +156,7 @@ async def generate_weights(mood: str, activity: str) -> Weights:
     
     # Handle response
     if response.parsed:
-        return response.parsed
+        return cast(Weights, response.parsed)
     else:
         raise ValueError(f"Failed to parse Gemini response: {response.text}")
 
