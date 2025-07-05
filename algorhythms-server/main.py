@@ -1,7 +1,7 @@
 import server
 import spotify_auth
 import time
-import spotify_api
+from spotify_api import *
 
 def main():
     try:
@@ -22,6 +22,7 @@ def main():
                 print("\nAuthentication timed out. Please try again.")
 
         # Make API calls here
+        print_top_tracks()
 
         # Keep the main thread alive
         while True:
