@@ -1,7 +1,13 @@
-import "../lib/spotify-auth";
-import { handleSpotifyLogin } from "../lib/spotify-auth";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthProvider";
+import "../lib/spotify/auth";
+import { handleSpotifyLogin } from "../lib/spotify/auth";
 
 const Login = () => {
+	const { guestLogin } = useAuth();
+
+	const navigate = useNavigate();
+
 	return (
 		<div className='w-full max-w-md bg-background rounded-2xl shadow-xl overflow-hidden'>
 			{/* Header Section */}
@@ -35,7 +41,13 @@ const Login = () => {
 				</div>
 
 				<div className='mt-8 pt-5 border-t border-gray-200'>
-					<button className='cursor-pointer w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-3 rounded-lg hover:opacity-90 transition-opacity shadow-md'>
+					<button
+						className='cursor-pointer w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-3 rounded-lg hover:opacity-90 transition-opacity shadow-md'
+						onClick={() => {
+							guestLogin();
+							navigate("/create-playlist");
+						}}
+					>
 						Continue as Guest
 					</button>
 				</div>

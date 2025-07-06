@@ -37,6 +37,26 @@
 	}
 }
 
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes progress {
+	0% {
+		width: 0%;
+	}
+	100% {
+		width: 100%;
+	}
+}
+
 .animate-morph {
 	animation: morph 12s ease-in-out infinite;
 }
@@ -63,6 +83,14 @@
 
 .animate-pulse-slow {
 	animation: pulse-slow 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-fadeIn {
+	animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-progress {
+	animation: progress 2s ease-in-out infinite;
 }
 
 /* Scrollbar styling */
