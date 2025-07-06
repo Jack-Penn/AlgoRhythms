@@ -1,56 +1,28 @@
-from typing import List, Optional, cast
-from pydantic import BaseModel
-import spotify_auth 
+from spotipy import Spotify
+from typing import List
+from spotify_auth import algorhythms_account
 
-class Image(BaseModel):
-    url: str
-    height: int
-    width: int
-
-class ExplicitContent(BaseModel):
-    filter_enabled: bool
-    filter_locked: bool
-
-class ExternalUrls(BaseModel):
-    spotify: str
-
-class Followers(BaseModel):
-    href: Optional[str] = None
-    total: int
-
-class UserProfile(BaseModel):
-    country: str
-    display_name: str
-    email: str
-    explicit_content: ExplicitContent
-    external_urls: ExternalUrls
-    followers: Followers
-    href: str
-    id: str
-    images: List[Image]
-    product: str
-    type: str
-    uri: str
-
-current_user = None
-
-def create_playlist(track_uris: List[str]):
-    global current_user
-    print(spotify_auth.sp)
+def create_playlist(sp: Spotify, name: str, description:str, track_uris: List[str]):
+    current_user = sp.current_user()
     if current_user is None:
-        current_user = spotify_auth.sp.current_user()
-        print(current_user)
+        print("Error: Received no response from Spotify API while getting current user")
+        return
+    print(current_user)
     print("Creating test playlist")
-    playlist_id = spotify_auth.sp.user_playlist_create(current_user['id'], "Programatic Playlist", public=True, description="This playlist was created with python")["id"]
-    spotify_auth.sp.playlist_add_items(playlist_id, track_uris)
+    playlist = algorhythms_account.user_playlist_create(current_user["id"], name, public=True, description=description)
+    if playlist is None:
+        print("Error creating playlist")
+        return
+    sp.playlist_add_items(playlist["id"], track_uris)
 
-def print_top_tracks():
+def print_top_tracks(sp: Spotify):
     # Get top 10 tracks
-    top_tracks = spotify_auth.sp.current_user_top_tracks(limit=10, time_range="medium_term")
-    
-    # Print results
+    response = sp.current_user_top_tracks(limit=10, time_range="medium_term")
+    if response is None:
+            print("Error: Received no response from Spotify API")
+            return
     print("\nYour Top 10 Tracks:")
-    for idx, track in enumerate(top_tracks["items"]):
+    for idx, track in enumerate(response['items']):
         artists = ", ".join([artist["name"] for artist in track["artists"]])
         print(f"{idx+1}. {track['name']} by {artists}")
 
@@ -75,7 +47,10 @@ def deduplicate_tracks(tracks: list[dict]) -> list[dict]:
             unique_tracks.append(track)
             
     return unique_tracks
-def searchTracks(query: str):
-    tracks = spotify_auth.sp.search(query, type="track")["tracks"]["items"]
-    return deduplicate_tracks(tracks)
+def searchTracks(sp: Spotify, query: str):
+    response = sp.search(query, type="track")
+    if response is None:
+            print("Error: Received no response from Spotify API")
+            return
+    return deduplicate_tracks(response["tracks"]["items"])
 

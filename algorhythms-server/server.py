@@ -5,8 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn 
 from gemini_api import generate_weights
-from spotify_auth import handle_auth_callback
-import spotify_api
+from spotify_auth import handle_auth_callback, server_access
+from spotify_api import *
 
 # Run command: fastapi dev server.py
 HOST = "127.0.0.1"
@@ -73,7 +73,7 @@ async def generate_weights_endpoint(mood: Union[str, None] = None, activity: Uni
 @app.get("/search-tracks")
 async def search_tracks_endpoint(query: Union[str, None] = None):
     if(query is not None):
-        return spotify_api.searchTracks(query)
+        return searchTracks(server_access, query)
     else:
         return {"error": "No search query specified"}
 
