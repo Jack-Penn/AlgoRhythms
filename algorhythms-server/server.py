@@ -4,7 +4,7 @@ from typing import Union
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn 
-from gemini_api import generate_weights
+from gemini_api import generate_weights, generate_emoji
 from spotify_auth import handle_auth_callback, server_access
 from spotify_api import *
 
@@ -69,6 +69,13 @@ async def generate_weights_endpoint(mood: Union[str, None] = None, activity: Uni
         return await generate_weights(mood, activity)
     else:
         return {"error": "Activity or Mood is undefined"}
+    
+@app.get("/generate-emoji")
+async def generate_emoji_endpoint(term: Union[str, None] = None):
+    if(term is not None):
+        return await generate_emoji(term)
+    else:
+        return {"error": "term is undefined"}
     
 @app.get("/search-tracks")
 async def search_tracks_endpoint(query: Union[str, None] = None):
