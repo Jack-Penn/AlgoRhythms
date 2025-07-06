@@ -160,6 +160,20 @@ async def generate_weights(mood: str, activity: str) -> Weights:
     else:
         raise ValueError(f"Failed to parse Gemini response: {response.text}")
 
+async def generate_emoji(term: str) -> str:
+    response = await asyncio.to_thread(
+        client.models.generate_content,
+        model="gemini-2.5-flash-lite-preview-06-17",
+        contents=f"please generate a single emoji that most closely represents the word {term}. Only generate a single emoji",
+        config={}
+    )
+    if response.text:
+        return response.text
+    else:
+        raise ValueError("Gemini did not respond error")
+
+
+
 # Async main function
 async def main():
     test_cases = [
