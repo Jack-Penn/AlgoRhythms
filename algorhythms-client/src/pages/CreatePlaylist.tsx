@@ -59,7 +59,7 @@ export default function CreatePlaylist() {
 		queryKey: ["moodEmoji", debouncedMood],
 		queryFn: () => {
 			if (!debouncedMood) return null;
-			return getGenerateEmoji(debouncedMood);
+			return getGenerateEmoji(`mood: ${debouncedMood}`);
 		},
 		enabled: !!debouncedMood,
 	});
@@ -68,7 +68,7 @@ export default function CreatePlaylist() {
 		queryKey: ["activityEmoji", debouncedActivity],
 		queryFn: () => {
 			if (!debouncedActivity) return null;
-			return getGenerateEmoji(debouncedActivity);
+			return getGenerateEmoji(`activity: ${debouncedActivity}`);
 		},
 		enabled: !!debouncedActivity,
 	});
