@@ -164,7 +164,7 @@ async def generate_emoji(term: str) -> str:
     response = await asyncio.to_thread(
         client.models.generate_content,
         model="gemini-2.5-flash-lite-preview-06-17",
-        contents=f"please generate a single emoji that most closely represents the given input. Only generate one emoji character. input: {input}",
+        contents=f"please generate a single emoji that most closely represents the given input. Only generate one emoji character. input: {term}",
         config={}
     )
     if response.text:
