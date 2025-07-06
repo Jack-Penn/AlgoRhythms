@@ -6,8 +6,12 @@ import {
 } from "@heroicons/react/16/solid";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
-import React, { useEffect, useState } from "react";
-import { getGeneratedWeights, searchTracks } from "../lib/api";
+import { useEffect, useState } from "react";
+import {
+	getGeneratedWeights,
+	getGenerateEmoji,
+	searchTracks,
+} from "../lib/api";
 import useDebounce from "../lib/hooks/useDebounce";
 import type { TrackObject } from "../lib/spotify/types";
 import { useAuth } from "../auth/AuthProvider";
@@ -38,7 +42,7 @@ export default function CreatePlaylist() {
 	const debouncedActivity = useDebounce(activity, 1000).trim();
 
 	// React Query for fetching weights
-	const { data, isFetching } = useQuery({
+	const generatedWeights = useQuery({
 		queryKey: ["generatedWeights", debouncedMood, debouncedActivity],
 		queryFn: () => {
 			if (!debouncedMood || !debouncedActivity) return null;
@@ -51,21 +55,39 @@ export default function CreatePlaylist() {
 		enabled: !!debouncedMood && !!debouncedActivity,
 	});
 
+	const moodEmoji = useQuery({
+		queryKey: ["moodEmoji", debouncedMood],
+		queryFn: () => {
+			if (!debouncedMood) return null;
+			return getGenerateEmoji(debouncedMood);
+		},
+		enabled: !!debouncedMood,
+	});
+
+	const activityEmoji = useQuery({
+		queryKey: ["activityEmoji", debouncedActivity],
+		queryFn: () => {
+			if (!debouncedActivity) return null;
+			return getGenerateEmoji(debouncedActivity);
+		},
+		enabled: !!debouncedActivity,
+	});
+
 	// Update weights when new data comes in
 	useEffect(() => {
-		if (data && !hasManualAdjustment) {
-			console.log("Weights", data);
-			setAcousticness(data.acousticness * 100);
-			setDanceability(data.danceability * 100);
-			setEnergy(data.energy * 100);
-			setInstrumentalness(data.instrumentalness * 100);
-			setLiveness(data.liveness * 100);
-			setValence(data.valence * 100);
-			setSpeechiness(data.speechiness * 100);
-			setTempo(data.tempo);
-			setLoudeness(data.loudness);
+		if (generatedWeights.data && !hasManualAdjustment) {
+			console.log("Weights", generatedWeights.data);
+			setAcousticness(generatedWeights.data.acousticness * 100);
+			setDanceability(generatedWeights.data.danceability * 100);
+			setEnergy(generatedWeights.data.energy * 100);
+			setInstrumentalness(generatedWeights.data.instrumentalness * 100);
+			setLiveness(generatedWeights.data.liveness * 100);
+			setValence(generatedWeights.data.valence * 100);
+			setSpeechiness(generatedWeights.data.speechiness * 100);
+			setTempo(generatedWeights.data.tempo);
+			setLoudeness(generatedWeights.data.loudness);
 		}
-	}, [data]);
+	}, [generatedWeights.data]);
 
 	// Reset manual adjustment flag when inputs change
 	useEffect(() => {
@@ -82,8 +104,6 @@ export default function CreatePlaylist() {
 			setHasManualAdjustment(true);
 		};
 	};
-
-	const isLoadingWeights = isFetching;
 
 	return (
 		<div className='w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden'>
@@ -112,32 +132,46 @@ export default function CreatePlaylist() {
 			{/* Form Section */}
 			<div className='p-8'>
 				<div className='space-y-6'>
-					{/* Current Mood Section */}
-					<div>
+					{/* Mood Section */}
+					<div className='mb-6'>
 						<label className='block text-gray-700 text-lg font-medium mb-3'>
 							How are you feeling today?
 						</label>
-						<input
-							type='text'
-							value={mood}
-							onChange={(e) => setMood(e.target.value)}
-							className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-							placeholder='Describe a mood for your playlist...'
-						/>
+						<div className='relative'>
+							<input
+								type='text'
+								value={mood}
+								onChange={(e) => setMood(e.target.value)}
+								className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12' // Added pr-12 for right padding
+								placeholder='Describe a mood for your playlist...'
+							/>
+							{moodEmoji.data?.emoji && (
+								<div className='absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none z-10'>
+									<span className='text-2xl'>{moodEmoji.data.emoji}</span>
+								</div>
+							)}
+						</div>
 					</div>
 
 					{/* Activity Section */}
-					<div>
+					<div className='mb-6'>
 						<label className='block text-gray-700 text-lg font-medium mb-3'>
 							What activity do you need a playlist for?
 						</label>
-						<input
-							type='text'
-							value={activity}
-							onChange={(e) => setActivity(e.target.value)}
-							className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-							placeholder='Working, Studying, Exercising...'
-						/>
+						<div className='relative'>
+							<input
+								type='text'
+								value={activity}
+								onChange={(e) => setActivity(e.target.value)}
+								className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12' // Added pr-12 for right padding
+								placeholder='Working, Studying, Exercising...'
+							/>
+							{activityEmoji.data?.emoji && (
+								<div className='absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none z-10'>
+									<span className='text-2xl'>{activityEmoji.data?.emoji}</span>
+								</div>
+							)}
+						</div>
 					</div>
 
 					{/* Playlist Length Section */}
@@ -204,7 +238,7 @@ export default function CreatePlaylist() {
 								Customize Weights
 							</h3>
 
-							{isLoadingWeights && (
+							{generatedWeights.isFetching && (
 								<div className=' animate-pulse flex flex-row gap-1'>
 									<span className='bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text text-sm'>
 										Generating weights
@@ -382,8 +416,6 @@ function lerpTailwindColor(
 }
 
 const SongsSelector = () => {
-	const { token } = useAuth();
-
 	// States for song selection
 	const [songQuery, setSongQuery] = useState("");
 	const [selectedTracks, setSelectedTracks] = useState<TrackObject[]>([]);

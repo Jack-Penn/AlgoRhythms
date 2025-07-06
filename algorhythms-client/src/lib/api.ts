@@ -26,6 +26,10 @@ export const getGeneratedWeights = (input: {
 	return fetchAPI("generate-weights", input);
 };
 
+export const getGenerateEmoji = (term: string): Promise<{ emoji: string }> => {
+	return fetchAPI("generate-emoji", { term });
+};
+
 export const searchTracks = (query: string): Promise<TrackObject[] | null> => {
 	return fetchAPI("search-tracks", {
 		query,
