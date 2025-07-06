@@ -1,5 +1,6 @@
 import server
 import spotify_auth
+from spotify_auth import algorhythms_account
 import time
 from spotify_api import *
 
@@ -22,15 +23,13 @@ def main():
                 print("\nAuthentication timed out. Please try again.")
 
         # Make API calls here
-        print_top_tracks()
+        print_top_tracks(algorhythms_account)
 
         # Keep the main thread alive
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("Shutting down server...")
-    except Exception as e:
-        print(f"Unexpected error: {str(e)}")
     finally:
         server.stop_server()
         print("Clean shutdown complete")
