@@ -1,4 +1,4 @@
-import type { SpotifyUserProfile } from "./spotify/api";
+import type { SpotifyUserProfile } from "./spotify/types";
 
 export type Weights = {
 	acousticness: number;

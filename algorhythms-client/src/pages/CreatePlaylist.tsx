@@ -1,9 +1,17 @@
-import { EyeIcon, EyeSlashIcon, SparklesIcon } from "@heroicons/react/16/solid";
+import {
+	EyeIcon,
+	EyeSlashIcon,
+	SparklesIcon,
+	TrashIcon,
+} from "@heroicons/react/16/solid";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
 import { getGeneratedWeights } from "../lib/api";
 import useDebounce from "../lib/hooks/useDebounce";
+import type { TrackObject } from "../lib/spotify/types";
+import { searchTracks } from "../lib/spotify/api";
+import { useAuth } from "../auth/AuthProvider";
 
 export default function CreatePlaylist() {
 	// Form states
@@ -177,7 +185,12 @@ export default function CreatePlaylist() {
 					</div>
 
 					{/* Divider */}
-					<div className='border-t border-gray-200 my-6'></div>
+					<div className='border-t border-gray-200 my-6' />
+
+					<SongsSelector />
+
+					{/* Divider */}
+					<div className='border-t border-gray-200 my-6' />
 
 					{/* Weights Section */}
 					<div>
@@ -362,3 +375,239 @@ function lerpTailwindColor(
 		value * 100
 	}%)`;
 }
+
+const SongsSelector = () => {
+	const { token } = useAuth();
+
+	// States for song selection
+	const [songQuery, setSongQuery] = useState("");
+	const [selectedTracks, setSelectedTracks] = useState<TrackObject[]>([]);
+
+	// Debounce the song search query
+	const debouncedSongQuery = useDebounce(songQuery, 500);
+
+	// React Query for fetching tracks
+	const { data, isFetching } = useQuery({
+		queryKey: ["searchTracks", debouncedSongQuery],
+		queryFn: () => {
+			if (!debouncedSongQuery) return [];
+			return searchTracks(token!, debouncedSongQuery);
+		},
+		enabled: !!debouncedSongQuery,
+	});
+
+	// Add track to selected list
+	const addTrack = (track: TrackObject) => {
+		if (!selectedTracks.some((t) => t.id === track.id)) {
+			setSelectedTracks((prev) => [...prev, track]);
+		}
+		setSongQuery(""); // Clear search after selection
+	};
+
+	// Remove track from selected list
+	const removeTrack = (trackId: string) => {
+		setSelectedTracks((prev) => prev.filter((track) => track.id !== trackId));
+	};
+
+	return (
+		<div className='space-y-4'>
+			<div>
+				<label className='block text-gray-700 text-lg font-medium mb-2'>
+					Favorite Songs
+				</label>
+				<p className='text-xs text-gray-500 italic mb-3'>
+					Help us understand your taste (songs may influence but not necessarily
+					appear in playlist)
+				</p>
+			</div>
+
+			{/* Search input with autocomplete */}
+			<div className='relative mb-4'>
+				<div className='relative'>
+					<input
+						type='text'
+						value={songQuery}
+						onChange={(e) => setSongQuery(e.target.value)}
+						className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10'
+						placeholder='Search for songs...'
+					/>
+					{isFetching && (
+						<div className='absolute inset-y-0 right-0 flex items-center pr-3'>
+							<svg
+								className='animate-spin h-5 w-5 text-gray-400'
+								xmlns='http://www.w3.org/2000/svg'
+								fill='none'
+								viewBox='0 0 24 24'
+							>
+								<circle
+									className='opacity-25'
+									cx='12'
+									cy='12'
+									r='10'
+									stroke='currentColor'
+									strokeWidth='4'
+								></circle>
+								<path
+									className='opacity-75'
+									fill='currentColor'
+									d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+								></path>
+							</svg>
+						</div>
+					)}
+				</div>
+
+				{/* Autocomplete dropdown */}
+				{songQuery && (
+					<div className='absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto'>
+						{isFetching ? (
+							<div className='p-4 text-center text-gray-500'>
+								<div className='flex justify-center'>
+									<svg
+										className='animate-spin h-5 w-5 text-purple-500'
+										xmlns='http://www.w3.org/2000/svg'
+										fill='none'
+										viewBox='0 0 24 24'
+									>
+										<circle
+											className='opacity-25'
+											cx='12'
+											cy='12'
+											r='10'
+											stroke='currentColor'
+											strokeWidth='4'
+										></circle>
+										<path
+											className='opacity-75'
+											fill='currentColor'
+											d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+										></path>
+									</svg>
+								</div>
+							</div>
+						) : data?.length ? (
+							data.map((track) => (
+								<div
+									key={track.id}
+									onClick={() => addTrack(track)}
+									className='flex items-center p-3 cursor-pointer hover:bg-blue-50 transition-colors'
+								>
+									<TrackItem track={track} />
+								</div>
+							))
+						) : (
+							<div className='p-4 text-center text-gray-500'>
+								No results found
+							</div>
+						)}
+					</div>
+				)}
+			</div>
+
+			{/* Selected tracks */}
+			<div>
+				<div className='flex justify-between items-center mb-3'>
+					<h4 className='font-medium text-gray-700'>Selected Songs</h4>
+					<span
+						className='text-sm font-medium bg-blue-100 text-blue-800 rounded-full px-2.5 py-0.5'
+						style={{
+							backgroundColor: lerpTailwindColor(
+								"--color-blue-100",
+								"--color-purple-100",
+								selectedTracks.length / 5,
+							),
+							color: lerpTailwindColor(
+								"--color-blue-800",
+								"--color-purple-800",
+								selectedTracks.length / 5,
+							),
+						}}
+					>
+						{selectedTracks.length}
+					</span>
+				</div>
+
+				{selectedTracks.length === 0 ? (
+					<div className='bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center'>
+						<div className='flex flex-col items-center justify-center'>
+							<svg
+								xmlns='http://www.w3.org/2000/svg'
+								className='h-10 w-10 text-gray-400'
+								fill='none'
+								viewBox='0 0 24 24'
+								stroke='currentColor'
+							>
+								<path
+									strokeLinecap='round'
+									strokeLinejoin='round'
+									strokeWidth={2}
+									d='M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3'
+								/>
+							</svg>
+							<p className='mt-2 text-sm text-gray-500'>
+								No songs selected yet
+							</p>
+						</div>
+					</div>
+				) : (
+					<div className='space-y-3 max-h-60 overflow-y-auto pr-1'>
+						{selectedTracks.map((track) => (
+							<div
+								key={track.id}
+								className='flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200'
+							>
+								<TrackItem track={track} />
+								<button
+									onClick={() => removeTrack(track.id)}
+									className='ml-3 text-gray-400 hover:text-red-500 transition-colors size-5 cursor-pointer '
+								>
+									<TrashIcon />
+								</button>
+							</div>
+						))}
+					</div>
+				)}
+			</div>
+		</div>
+	);
+};
+
+interface TrackItemProps {
+	track: TrackObject;
+}
+const TrackItem: React.FC<TrackItemProps> = ({ track }) => {
+	return (
+		<div className='flex items-center w-full'>
+			{track.album.images?.[0]?.url ? (
+				<img
+					src={track.album.images[0].url}
+					alt={track.name}
+					className='w-12 h-12 rounded-lg object-cover border border-gray-200'
+				/>
+			) : (
+				<div className='bg-gray-200 border-2 border-dashed border-gray-300 rounded-lg w-12 h-12 flex items-center justify-center'>
+					<svg
+						xmlns='http://www.w3.org/2000/svg'
+						className='h-6 w-6 text-gray-400'
+						fill='none'
+						viewBox='0 0 24 24'
+						stroke='currentColor'
+					>
+						<path
+							strokeLinecap='round'
+							strokeLinejoin='round'
+							strokeWidth={2}
+							d='M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3'
+						/>
+					</svg>
+				</div>
+			)}
+			<div className='ml-3 min-w-0 flex-1'>
+				<p className='text-sm font-medium truncate'>{track.name}</p>
+				<p className='text-xs text-gray-500 truncate'>
+					{track.artists.map((artist) => artist.name).join(", ")}
+				</p>
+			</div>
+		</div>
+	);
+};

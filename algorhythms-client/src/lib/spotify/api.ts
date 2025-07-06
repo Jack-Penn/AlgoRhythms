@@ -1,31 +1,15 @@
-export interface SpotifyUserProfile {
-	country: string;
-	display_name: string;
-	email: string;
-	explicit_content: {
-		filter_enabled: boolean;
-		filter_locked: boolean;
-	};
-	external_urls: { spotify: string };
-	followers: { href: string; total: number };
-	href: string;
-	id: string;
-	images: Image[];
-	product: string;
-	type: string;
-	uri: string;
-}
-interface Image {
-	url: string;
-	height: number;
-	width: number;
-}
+import type { SpotifyUserProfile, TrackObject } from "./types";
 
-export async function fetchProfile(
+async function fetchSpotifyEndpoint(
 	token: string,
-): Promise<SpotifyUserProfile | null> {
+	endpoint: string,
+	params = {},
+) {
+	const url = new URL(endpoint, "https://api.spotify.com/v1/");
+	url.search = new URLSearchParams(params).toString();
+
 	try {
-		const response = await fetch("https://api.spotify.com/v1/me", {
+		const response = await fetch(url, {
 			method: "GET",
 			headers: { Authorization: `Bearer ${token}` },
 		});
@@ -41,4 +25,46 @@ export async function fetchProfile(
 		console.error("Fetch profile failed:", error);
 		return null;
 	}
+}
+
+export async function fetchProfile(
+	token: string,
+): Promise<SpotifyUserProfile | null> {
+	return fetchSpotifyEndpoint(token, "me");
+}
+
+export async function searchTracks(
+	token: string,
+	query: string,
+): Promise<TrackObject[] | null> {
+	const data = await fetchSpotifyEndpoint(token, "search", {
+		q: query,
+		type: "track",
+	});
+
+	console.log(data);
+
+	// Helper function to deduplicate tracks
+	function deduplicateTracks(tracks: TrackObject[]): TrackObject[] {
+		const seen = new Set<string>();
+		const uniqueTracks: TrackObject[] = [];
+
+		for (const track of tracks) {
+			// Create a normalized key: lowercase track name + sorted lowercase artist names
+			const artistKey = track.artists
+				.map((a) => a.name.toLowerCase())
+				.sort()
+				.join(",");
+			const trackKey = `${track.name.toLowerCase()}|${artistKey}`;
+
+			// If we haven't seen this combination, add to results
+			if (!seen.has(trackKey)) {
+				seen.add(trackKey);
+				uniqueTracks.push(track);
+			}
+		}
+
+		return uniqueTracks;
+	}
+	return deduplicateTracks(data.tracks.items);
 }

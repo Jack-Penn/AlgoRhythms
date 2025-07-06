@@ -80,17 +80,3 @@ async function getAccessToken(
 
 	return await result.json();
 }
-
-// async function refreshAccessToken(refresh_token: string) {
-// 	const params = {
-// 		client_id: CLIENT_ID,
-// 		grant_type: "refresh_token",
-// 		refresh_token
-// 	};
-
-// 	const result = await fetch("https://accounts.spotify.com/api/token", {
-// 		method: "POST",
-// 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
-// 		body: new URLSearchParams(params),
-// 	});
-// }
