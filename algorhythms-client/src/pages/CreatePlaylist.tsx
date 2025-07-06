@@ -7,13 +7,14 @@ import {
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
-import { getGeneratedWeights } from "../lib/api";
+import { getGeneratedWeights, searchTracks } from "../lib/api";
 import useDebounce from "../lib/hooks/useDebounce";
 import type { TrackObject } from "../lib/spotify/types";
-import { searchTracks } from "../lib/spotify/api";
 import { useAuth } from "../auth/AuthProvider";
 
 export default function CreatePlaylist() {
+	const { user } = useAuth();
+
 	// Form states
 	const [mood, setMood] = useState("");
 	const [activity, setActivity] = useState("");
@@ -187,10 +188,14 @@ export default function CreatePlaylist() {
 					{/* Divider */}
 					<div className='border-t border-gray-200 my-6' />
 
-					<SongsSelector />
+					{user?.is_guest && (
+						<>
+							<SongsSelector />
 
-					{/* Divider */}
-					<div className='border-t border-gray-200 my-6' />
+							{/* Divider */}
+							<div className='border-t border-gray-200 my-6' />
+						</>
+					)}
 
 					{/* Weights Section */}
 					<div>
@@ -391,7 +396,7 @@ const SongsSelector = () => {
 		queryKey: ["searchTracks", debouncedSongQuery],
 		queryFn: () => {
 			if (!debouncedSongQuery) return [];
-			return searchTracks(token!, debouncedSongQuery);
+			return searchTracks(debouncedSongQuery);
 		},
 		enabled: !!debouncedSongQuery,
 	});

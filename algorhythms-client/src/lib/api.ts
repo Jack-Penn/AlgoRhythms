@@ -1,3 +1,4 @@
+import type { TrackObject } from "./spotify/types";
 import type { Weights } from "./types";
 
 const BASE_URL = "http://127.0.0.1:8000";
@@ -23,4 +24,10 @@ export const getGeneratedWeights = (input: {
 	activity: string;
 }): Promise<Weights> => {
 	return fetchAPI("generate-weights", input);
+};
+
+export const searchTracks = (query: string): Promise<TrackObject[] | null> => {
+	return fetchAPI("search-tracks", {
+		query,
+	});
 };

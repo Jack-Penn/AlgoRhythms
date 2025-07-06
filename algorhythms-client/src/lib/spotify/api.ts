@@ -33,38 +33,38 @@ export async function fetchProfile(
 	return fetchSpotifyEndpoint(token, "me");
 }
 
-export async function searchTracks(
-	token: string,
-	query: string,
-): Promise<TrackObject[] | null> {
-	const data = await fetchSpotifyEndpoint(token, "search", {
-		q: query,
-		type: "track",
-	});
+// export async function searchTracks(
+// 	token: string,
+// 	query: string,
+// ): Promise<TrackObject[] | null> {
+// 	const data = await fetchSpotifyEndpoint(token, "search", {
+// 		q: query,
+// 		type: "track",
+// 	});
 
-	console.log(data);
+// 	console.log(data);
 
-	// Helper function to deduplicate tracks
-	function deduplicateTracks(tracks: TrackObject[]): TrackObject[] {
-		const seen = new Set<string>();
-		const uniqueTracks: TrackObject[] = [];
+// 	// Helper function to deduplicate tracks
+// 	function deduplicateTracks(tracks: TrackObject[]): TrackObject[] {
+// 		const seen = new Set<string>();
+// 		const uniqueTracks: TrackObject[] = [];
 
-		for (const track of tracks) {
-			// Create a normalized key: lowercase track name + sorted lowercase artist names
-			const artistKey = track.artists
-				.map((a) => a.name.toLowerCase())
-				.sort()
-				.join(",");
-			const trackKey = `${track.name.toLowerCase()}|${artistKey}`;
+// 		for (const track of tracks) {
+// 			// Create a normalized key: lowercase track name + sorted lowercase artist names
+// 			const artistKey = track.artists
+// 				.map((a) => a.name.toLowerCase())
+// 				.sort()
+// 				.join(",");
+// 			const trackKey = `${track.name.toLowerCase()}|${artistKey}`;
 
-			// If we haven't seen this combination, add to results
-			if (!seen.has(trackKey)) {
-				seen.add(trackKey);
-				uniqueTracks.push(track);
-			}
-		}
+// 			// If we haven't seen this combination, add to results
+// 			if (!seen.has(trackKey)) {
+// 				seen.add(trackKey);
+// 				uniqueTracks.push(track);
+// 			}
+// 		}
 
-		return uniqueTracks;
-	}
-	return deduplicateTracks(data.tracks.items);
-}
+// 		return uniqueTracks;
+// 	}
+// 	return deduplicateTracks(data.tracks.items);
+// }

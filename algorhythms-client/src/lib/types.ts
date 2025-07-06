@@ -14,5 +14,13 @@ export type Weights = {
 
 export type LoggedInUser = {
 	display_name: string;
-	spotify_profile: SpotifyUserProfile | null;
-};
+} & (
+	| {
+			is_guest: true;
+			spotify_profile: null;
+	  }
+	| {
+			is_guest: false;
+			spotify_profile: SpotifyUserProfile;
+	  }
+);

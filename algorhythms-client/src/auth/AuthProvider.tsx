@@ -32,6 +32,7 @@ const AuthProvider = ({ children }: PropsWithChildren) => {
 	const guestLogin = () => {
 		setUser({
 			display_name: "guest",
+			is_guest: true,
 			spotify_profile: null,
 		});
 	};
@@ -44,6 +45,7 @@ const AuthProvider = ({ children }: PropsWithChildren) => {
 			console.log(spotifyProfile);
 			setUser({
 				display_name: spotifyProfile.display_name,
+				is_guest: false,
 				spotify_profile: spotifyProfile,
 			});
 			setToken(tokenResponse.access_token);
