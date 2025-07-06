@@ -53,3 +53,29 @@ def print_top_tracks():
     for idx, track in enumerate(top_tracks["items"]):
         artists = ", ".join([artist["name"] for artist in track["artists"]])
         print(f"{idx+1}. {track['name']} by {artists}")
+
+def deduplicate_tracks(tracks: list[dict]) -> list[dict]:
+    seen = set()
+    unique_tracks = []
+    
+    for track in tracks:
+        # Extract and normalize track name
+        track_name = track['name'].lower()
+        
+        # Extract, normalize, and sort artist names
+        artists = sorted([a['name'].lower() for a in track['artists']])
+        artist_key = ','.join(artists)
+        
+        # Create unique composite key
+        composite_key = f"{track_name}|{artist_key}"
+        
+        # Add first occurrence of each unique track
+        if composite_key not in seen:
+            seen.add(composite_key)
+            unique_tracks.append(track)
+            
+    return unique_tracks
+def searchTracks(query: str):
+    tracks = spotify_auth.sp.search(query, type="track")["tracks"]["items"]
+    return deduplicate_tracks(tracks)
+

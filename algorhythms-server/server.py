@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn 
 from gemini_api import generate_weights
 from spotify_auth import handle_auth_callback
+import spotify_api
 
 # Run command: fastapi dev server.py
 HOST = "127.0.0.1"
@@ -59,16 +60,22 @@ def stop_server():
     server_thread = None
 
 @app.get("/")
-def root():
+def root_endpoint():
         return {"status": "success"}
 
 @app.get("/generate-weights")
 async def generate_weights_endpoint(mood: Union[str, None] = None, activity: Union[str, None] = None):
     if(mood is not None and activity is not None):
-        weights = await generate_weights(mood, activity)
-        return weights
+        return await generate_weights(mood, activity)
     else:
         return {"error": "Activity or Mood is undefined"}
+    
+@app.get("/search-tracks")
+async def search_tracks_endpoint(query: Union[str, None] = None):
+    if(query is not None):
+        return spotify_api.searchTracks(query)
+    else:
+        return {"error": "No search query specified"}
 
 @app.get("/server_auth_callback")
 def server_auth_callback_endpoint(code: str, state: str):
