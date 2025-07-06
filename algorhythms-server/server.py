@@ -73,7 +73,7 @@ async def generate_weights_endpoint(mood: Union[str, None] = None, activity: Uni
 @app.get("/generate-emoji")
 async def generate_emoji_endpoint(term: Union[str, None] = None):
     if(term is not None):
-        return await generate_emoji(term)
+        return {"emoji": await generate_emoji(term)}
     else:
         return {"error": "term is undefined"}
     
