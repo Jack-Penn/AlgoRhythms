@@ -13,15 +13,15 @@ client = genai.Client(api_key=gemini_api_key)
 
 # Define Pydantic models for structured output
 class Weights(BaseModel):
-    acousticness: float
-    danceability: float
     energy: float
-    instrumentalness: float
-    liveness: float
-    loudness: float
-    speechiness: float
-    tempo: float  # Actual BPM value
     valence: float
+    danceability: float
+    acousticness: float
+    instrumentalness: float
+    speechiness: float
+    liveness: float
+    tempo: int
+    loudness: int 
 
 class PlaylistExample(BaseModel):
     mood: str
@@ -39,7 +39,7 @@ EXAMPLES: List[PlaylistExample] = [
             energy=0.3,
             instrumentalness=0.7,
             liveness=0.1,
-            loudness=-20.5,
+            loudness=-21,
             speechiness=0.1,
             tempo=75,
             valence=0.6
@@ -54,7 +54,7 @@ EXAMPLES: List[PlaylistExample] = [
             energy=0.95,
             instrumentalness=0.4,
             liveness=0.2,
-            loudness=-5.2,
+            loudness=-5,
             speechiness=0.2,
             tempo=145,
             valence=0.8
@@ -69,7 +69,7 @@ EXAMPLES: List[PlaylistExample] = [
             energy=0.2,
             instrumentalness=0.6,
             liveness=0.1,
-            loudness=-15.0,
+            loudness=-15,
             speechiness=0.05,
             tempo=65,
             valence=0.3

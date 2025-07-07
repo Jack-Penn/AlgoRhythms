@@ -2,7 +2,7 @@ from spotipy import Spotify
 from typing import List
 from spotify_auth import algorhythms_account
 
-def create_playlist(sp: Spotify, name: str, description:str, track_uris: List[str]):
+def create_playlist(sp: Spotify, name: str, description:str, track_uris: List[str]) -> dict | None:
     current_user = sp.current_user()
     if current_user is None:
         print("Error: Received no response from Spotify API while getting current user")
@@ -14,6 +14,8 @@ def create_playlist(sp: Spotify, name: str, description:str, track_uris: List[st
         print("Error creating playlist")
         return
     sp.playlist_add_items(playlist["id"], track_uris)
+    return playlist
+
 
 def print_top_tracks(sp: Spotify):
     # Get top 10 tracks

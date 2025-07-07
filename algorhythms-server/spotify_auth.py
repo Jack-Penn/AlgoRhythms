@@ -5,9 +5,10 @@ import time
 import webbrowser
 from dotenv import load_dotenv
 import os
+from pydantic import BaseModel
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth, SpotifyClientCredentials
-from spotipy.cache_handler import CacheFileHandler
+from spotipy.cache_handler import CacheFileHandler, MemoryCacheHandler
 from typing import cast
 
 REDIRECT_URI = "http://127.0.0.1:8000/server_auth_callback"
@@ -16,6 +17,11 @@ TOKEN_CACHE_PATH = "spotify_token_cache.txt"
 load_dotenv(dotenv_path='./secrets.env')
 client_id = os.getenv("SPOTIFY_CLIENT_ID")
 client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+
+server_access = Spotify(auth_manager=SpotifyClientCredentials(
+        client_id=client_id,
+        client_secret=client_secret,
+    ))
 
 scopes = ["user-library-read", "user-top-read", "playlist-modify-public", "playlist-modify-private"]
 
@@ -33,37 +39,37 @@ def initialize_oauth() -> SpotifyOAuth:
         client_id=client_id,
         client_secret=client_secret,
         redirect_uri=REDIRECT_URI,
-        scope="  ".join(scopes),
+        scope=" ".join(scopes),
         cache_handler=CacheFileHandler(cache_path=TOKEN_CACHE_PATH),
         state=random_id()
     )
 
 def try_initialize_from_cache() -> bool:
     """Attempt to initialize from cached token and refresh if needed""" 
-    oath = initialize_oauth()
+    oauth = initialize_oauth()
 
-    # Try to get cached token
-    token_info = oath.get_cached_token()
+    # Try to get cached token  and ensure scope is current
+    token_info = oauth.get_cached_token()
     if not token_info:
         return False
         
     # Check if token needs refresh
-    if oath.is_token_expired(token_info):
+    if oauth.is_token_expired(token_info):
         try:
-            token_info = oath.refresh_access_token(token_info['refresh_token'])
+            token_info = oauth.refresh_access_token(token_info['refresh_token'])
         except Exception as e:
             print(f"Token refresh failed: {str(e)}")
             return False
     
     # Initialize Spotify client
-    algorhythms_account.auth_manager = oath
+    algorhythms_account.auth_manager = oauth
     token_obtained_event.set()
     return True
 
 def prompt_spotify_login() -> None:
-    oath = initialize_oauth()
-    auth_url = oath.get_authorize_url()
-    algorhythms_account.auth_manager = oath
+    oauth = initialize_oauth()
+    auth_url = oauth.get_authorize_url()
+    algorhythms_account.auth_manager = oauth
     print(f"Opening browser for Spotify login: {auth_url}")
     webbrowser.open(auth_url, new=2, autoraise=True)
 
@@ -71,14 +77,14 @@ def handle_auth_callback(code: str, state: str) -> None:
     if algorhythms_account.auth_manager is None:
         raise RuntimeError("OAuth not initialized when handling callback")
     
-    oath = cast(SpotifyOAuth, algorhythms_account.auth_manager)
+    oauth = cast(SpotifyOAuth, algorhythms_account.auth_manager)
     
     # Validate state
-    if state != oath.state:
+    if state != oauth.state:
         raise ValueError("State parameter does not match server's state")
     
     # Exchange auth code for tokens
-    oath.get_access_token(code)
+    oauth.get_access_token(code)
     token_obtained_event.set()
 
 def wait_for_auth(timeout: int = 300) -> bool:
@@ -116,7 +122,14 @@ def wait_for_auth(timeout: int = 300) -> bool:
 #             print(f"Token refresh failed: {str(e)}")
 #     return False
 
-server_access = Spotify(auth_manager=SpotifyClientCredentials(
-        client_id=client_id,
-        client_secret=client_secret,
-    ))
+class TokenInfo(BaseModel):
+    access_token: str
+    token_type: str
+    expires_in: int
+    refresh_token: str
+    scope: str
+def get_access_from_user_token(token_info: TokenInfo) -> Spotify:
+    oauth = SpotifyOAuth(client_id=client_id, client_secret=client_id, redirect_uri=REDIRECT_URI, cache_handler=MemoryCacheHandler())
+    oauth.refresh_access_token(token_info.refresh_token)
+    # Create and return Spotify client
+    return Spotify(auth_manager=oauth)
