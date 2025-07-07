@@ -11,22 +11,27 @@ import type { LoggedInUser } from "../lib/types";
 
 type ProviderProps = {
 	user: null | LoggedInUser;
-	token: null | string;
+	spotifyAuth: null | AccessTokenResponse;
 	guestLogin: () => void;
 	spotifyLogin: (tokenResponse: AccessTokenResponse) => Promise<void>;
 	logOut: () => void;
 };
 const AuthContext = createContext<ProviderProps>({
 	user: null,
-	token: null,
+	spotifyAuth: null,
 	guestLogin: () => {},
 	spotifyLogin: () => Promise.resolve(),
 	logOut: () => {},
 });
 
+export interface ExtendedTokenResponse extends AccessTokenResponse {
+	expires_at: number;
+}
 const AuthProvider = ({ children }: PropsWithChildren) => {
 	const [user, setUser] = useState<null | LoggedInUser>(null);
-	const [token, setToken] = useState(localStorage.getItem("site") || null);
+	const [spotifyAuth, setSpotifyAuth] = useState<ExtendedTokenResponse | null>(
+		null,
+	);
 	const navigate = useNavigate();
 
 	const guestLogin = () => {
@@ -48,22 +53,29 @@ const AuthProvider = ({ children }: PropsWithChildren) => {
 				is_guest: false,
 				spotify_profile: spotifyProfile,
 			});
-			setToken(tokenResponse.access_token);
-			localStorage.setItem("site", tokenResponse.access_token);
+			console.log(
+				"expires_at",
+				Math.floor(new Date().getTime() / 1000 + tokenResponse.expires_in),
+			);
+			setSpotifyAuth({
+				...tokenResponse,
+				expires_at: Math.floor(
+					new Date().getTime() / 1000 + tokenResponse.expires_in,
+				),
+			});
 			return;
 		}
 	};
 
 	const logOut = () => {
 		setUser(null);
-		setToken("");
-		localStorage.removeItem("site");
+		setSpotifyAuth(null);
 		navigate("/login");
 	};
 
 	return (
 		<AuthContext.Provider
-			value={{ token, user, guestLogin, spotifyLogin, logOut }}
+			value={{ spotifyAuth, user, guestLogin, spotifyLogin, logOut }}
 		>
 			{children}
 		</AuthContext.Provider>

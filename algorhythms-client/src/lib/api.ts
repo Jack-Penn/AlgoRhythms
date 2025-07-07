@@ -1,3 +1,4 @@
+import type { AccessTokenResponse } from "./spotify/auth";
 import type { TrackObject } from "./spotify/types";
 import type { Weights } from "./types";
 
@@ -34,4 +35,33 @@ export const searchTracks = (query: string): Promise<TrackObject[] | null> => {
 	return fetchAPI("search-tracks", {
 		query,
 	});
+};
+
+export const generatePlaylist = (
+	mood: string,
+	activity: string,
+	length: number,
+	favorite_songs: string[] | null,
+	weights: Weights,
+	auth: AccessTokenResponse | null,
+) => {
+	return fetchAPI(
+		"create-playlist",
+		{
+			mood,
+			activity,
+			length,
+			favorite_songs: favorite_songs ? favorite_songs.join(",") : undefined,
+		},
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				weights,
+				auth,
+			}),
+		},
+	);
 };
