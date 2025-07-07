@@ -126,10 +126,17 @@ class TokenInfo(BaseModel):
     access_token: str
     token_type: str
     expires_in: int
+    expires_at: int
     refresh_token: str
     scope: str
 def get_access_from_user_token(token_info: TokenInfo) -> Spotify:
-    oauth = SpotifyOAuth(client_id=client_id, client_secret=client_id, redirect_uri=REDIRECT_URI, cache_handler=MemoryCacheHandler())
-    oauth.refresh_access_token(token_info.refresh_token)
-    # Create and return Spotify client
+    print(token_info.expires_at)
+    oauth = SpotifyOAuth(
+        client_id=client_id,
+        client_secret=client_id, 
+        redirect_uri=REDIRECT_URI, 
+        cache_handler=MemoryCacheHandler(token_info=token_info.model_dump()), 
+        scope=token_info.scope, 
+        open_browser=False
+    )
     return Spotify(auth_manager=oauth)
