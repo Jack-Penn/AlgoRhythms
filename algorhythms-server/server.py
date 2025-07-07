@@ -121,7 +121,7 @@ async def create_playlist_endpoint(
         spotify_access = get_access_from_user_token(request.auth)
 
     track_uris = ["spotify:track:04emojnbYkrRmv5qtJcgVP", "spotify:track:42UBPzRMh5yyz0EDPr6fr1", "spotify:track:2ipIPsgrgd0j2beDf4Ki70"]
-    playlist = create_playlist(spotify_access, "[Playlist name]", "[Playlist description]", track_uris)
+    playlist = create_playlist(spotify_access, mood + " " + activity, "[Playlist Description]", track_uris)
 
     if playlist is None:
         return {

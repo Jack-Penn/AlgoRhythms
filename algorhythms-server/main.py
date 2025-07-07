@@ -23,7 +23,7 @@ def main():
                 print("\nAuthentication timed out. Please try again.")
 
         # Make API calls here
-        print_top_tracks(algorhythms_account)
+        print(algorhythms_account.current_user())
 
         # Keep the main thread alive
         while True:
