@@ -23,7 +23,8 @@ async function redirectToAuthCodeFlow(CLIENT_ID: string) {
 		response_type: "code",
 		redirect_uri: REDIRECT_URI,
 		// state: "" //TODO:  Prevent CSRF attack
-		scope: "user-read-private user-read-email",
+		scope:
+			"user-read-private user-read-email playlist-modify-public playlist-modify-private",
 		code_challenge_method: "S256",
 		code_challenge: challenge,
 	};

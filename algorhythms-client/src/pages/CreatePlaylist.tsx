@@ -8,6 +8,7 @@ import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
+	generatePlaylist,
 	getGeneratedWeights,
 	getGenerateEmoji,
 	searchTracks,
@@ -15,14 +16,17 @@ import {
 import useDebounce from "../lib/hooks/useDebounce";
 import type { TrackObject } from "../lib/spotify/types";
 import { useAuth } from "../auth/AuthProvider";
+import type { Weights } from "../lib/types";
 
 export default function CreatePlaylist() {
-	const { user } = useAuth();
+	const { user, spotifyAuth } = useAuth();
 
 	// Form states
 	const [mood, setMood] = useState("");
 	const [activity, setActivity] = useState("");
 	const [playlistLength, setPlaylistLength] = useState(10);
+
+	const [selectedTracks, setSelectedTracks] = useState<TrackObject[]>([]);
 
 	// Weights state
 	const [showWeights, setShowWeights] = useState(false);
@@ -34,7 +38,7 @@ export default function CreatePlaylist() {
 	const [valence, setValence] = useState(50);
 	const [speechiness, setSpeechiness] = useState(50);
 	const [tempo, setTempo] = useState(125);
-	const [loudeness, setLoudeness] = useState(-30);
+	const [loudness, setLoudness] = useState(-30);
 	const [hasManualAdjustment, setHasManualAdjustment] = useState(false);
 
 	// Debounce mood and activity inputs
@@ -59,7 +63,7 @@ export default function CreatePlaylist() {
 		queryKey: ["moodEmoji", debouncedMood],
 		queryFn: () => {
 			if (!debouncedMood) return null;
-			return getGenerateEmoji(debouncedMood);
+			return getGenerateEmoji(`mood: ${debouncedMood}`);
 		},
 		enabled: !!debouncedMood,
 	});
@@ -68,7 +72,7 @@ export default function CreatePlaylist() {
 		queryKey: ["activityEmoji", debouncedActivity],
 		queryFn: () => {
 			if (!debouncedActivity) return null;
-			return getGenerateEmoji(debouncedActivity);
+			return getGenerateEmoji(`activity: ${debouncedActivity}`);
 		},
 		enabled: !!debouncedActivity,
 	});
@@ -85,7 +89,7 @@ export default function CreatePlaylist() {
 			setValence(generatedWeights.data.valence * 100);
 			setSpeechiness(generatedWeights.data.speechiness * 100);
 			setTempo(generatedWeights.data.tempo);
-			setLoudeness(generatedWeights.data.loudness);
+			setLoudness(generatedWeights.data.loudness);
 		}
 	}, [generatedWeights.data]);
 
@@ -104,6 +108,30 @@ export default function CreatePlaylist() {
 			setHasManualAdjustment(true);
 		};
 	};
+
+	async function submitForm() {
+		const scaledWeights: Weights = {
+			acousticness: acousticness / 100,
+			danceability: danceability / 100,
+			energy: energy / 100,
+			instrumentalness: instrumentalness / 100,
+			liveness: liveness / 100,
+			valence: valence / 100,
+			speechiness: speechiness / 100,
+			tempo,
+			loudness,
+		};
+		const data = await generatePlaylist(
+			mood,
+			activity,
+			playlistLength,
+			selectedTracks.length ? selectedTracks.map(({ uri }) => uri) : null,
+			scaledWeights,
+			spotifyAuth,
+		);
+
+		console.log(data);
+	}
 
 	return (
 		<div className='w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden'>
@@ -224,7 +252,10 @@ export default function CreatePlaylist() {
 
 					{user?.is_guest && (
 						<>
-							<SongsSelector />
+							<SongsSelector
+								state={selectedTracks}
+								setState={setSelectedTracks}
+							/>
 
 							{/* Divider */}
 							<div className='border-t border-gray-200 my-6' />
@@ -325,8 +356,8 @@ export default function CreatePlaylist() {
 								<WeightSlider
 									label='Loudness'
 									description='Overall volume (dB)'
-									value={loudeness}
-									onChange={handleSliderChange(setLoudeness)}
+									value={loudness}
+									onChange={handleSliderChange(setLoudness)}
 									min={-60}
 									max={0}
 									units=' db'
@@ -336,7 +367,10 @@ export default function CreatePlaylist() {
 					</div>
 
 					{/* Generate Button */}
-					<button className='w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-4 rounded-lg hover:opacity-90 transition-opacity shadow-md text-lg'>
+					<button
+						className='w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-4 rounded-lg hover:opacity-90 transition-opacity shadow-md text-lg cursor-pointer'
+						onClick={submitForm}
+					>
 						Generate Playlist
 					</button>
 				</div>
@@ -415,10 +449,13 @@ function lerpTailwindColor(
 	}%)`;
 }
 
-const SongsSelector = () => {
+type SongsSelectorProps = {
+	state: TrackObject[];
+	setState: React.Dispatch<React.SetStateAction<TrackObject[]>>;
+};
+const SongsSelector: React.FC<SongsSelectorProps> = ({ state, setState }) => {
 	// States for song selection
 	const [songQuery, setSongQuery] = useState("");
-	const [selectedTracks, setSelectedTracks] = useState<TrackObject[]>([]);
 
 	// Debounce the song search query
 	const debouncedSongQuery = useDebounce(songQuery, 500);
@@ -435,15 +472,15 @@ const SongsSelector = () => {
 
 	// Add track to selected list
 	const addTrack = (track: TrackObject) => {
-		if (!selectedTracks.some((t) => t.id === track.id)) {
-			setSelectedTracks((prev) => [...prev, track]);
+		if (!state.some((t) => t.id === track.id)) {
+			setState((prev) => [...prev, track]);
 		}
 		setSongQuery(""); // Clear search after selection
 	};
 
 	// Remove track from selected list
 	const removeTrack = (trackId: string) => {
-		setSelectedTracks((prev) => prev.filter((track) => track.id !== trackId));
+		setState((prev) => prev.filter((track) => track.id !== trackId));
 	};
 
 	return (
@@ -551,20 +588,20 @@ const SongsSelector = () => {
 							backgroundColor: lerpTailwindColor(
 								"--color-blue-100",
 								"--color-purple-100",
-								selectedTracks.length / 5,
+								state.length / 5,
 							),
 							color: lerpTailwindColor(
 								"--color-blue-800",
 								"--color-purple-800",
-								selectedTracks.length / 5,
+								state.length / 5,
 							),
 						}}
 					>
-						{selectedTracks.length}
+						{state.length}
 					</span>
 				</div>
 
-				{selectedTracks.length === 0 ? (
+				{state.length === 0 ? (
 					<div className='bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center'>
 						<div className='flex flex-col items-center justify-center'>
 							<svg
@@ -588,7 +625,7 @@ const SongsSelector = () => {
 					</div>
 				) : (
 					<div className='space-y-3 max-h-60 overflow-y-auto pr-1'>
-						{selectedTracks.map((track) => (
+						{state.map((track) => (
 							<div
 								key={track.id}
 								className='flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200'

@@ -27,7 +27,7 @@ interface SpotifyEmbedControllerOptions {
 	width: string;
 	height: string;
 	uri: string;
-	theme: "dark" | undefined;
+	theme?: "dark";
 }
 
 export default function ViewPlaylist() {
@@ -39,7 +39,7 @@ export default function ViewPlaylist() {
 	);
 	const [playerLoaded, setPlayerLoaded] = useState(false);
 
-	const uri = "spotify:playlist:31E7iHen1xD4ONOsLQtLZd";
+	const uri = "spotify:playlist:4huCkxRKajE7Vs0HsNmyLF";
 
 	const isInitialized = useRef(false);
 	useEffect(() => {
@@ -79,7 +79,7 @@ export default function ViewPlaylist() {
 			width: "100%",
 			height: "475",
 			uri: uri,
-			theme: "dark",
+			// theme: "dark",
 		};
 
 		iFrameAPI.createController(
@@ -130,7 +130,7 @@ export default function ViewPlaylist() {
 
 			{/* Player container - dynamic height */}
 			<div className='relative mb-2 rounded-xl bg-black/20'>
-				<div className='shadow-xl'>
+				<div className=''>
 					<div ref={embedRef} />
 				</div>
 				{!playerLoaded && (
