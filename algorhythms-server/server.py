@@ -1,13 +1,15 @@
 import socket
 import threading
 from typing import Optional, Union
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import uvicorn 
 from gemini_api import Weights, generate_weights, generate_emoji
 from spotify_auth import TokenInfo, get_access_from_user_token, handle_auth_callback, server_access
 from spotify_api import *
+from generate_playlist import task_generator
 
 # Run command: fastapi dev server.py
 HOST = "127.0.0.1"
@@ -132,6 +134,10 @@ async def create_playlist_endpoint(
         "playlist_uri": playlist["uri"],
     }
 
-# @app.get("/items/{item_id}")
-# async def read_item(item_id: int, q: Union[str, None] = None):
-#     return {"item_id": item_id, "q": q}
+@app.get("/generate-playlist")
+async def generate_playlist_endpoint(request: Request):
+    return StreamingResponse(
+        task_generator(request),
+        media_type="application/x-ndjson",  # Newline-delimited JSON
+        headers={"Cache-Control": "no-cache"}
+    )
