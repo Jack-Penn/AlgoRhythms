@@ -10,6 +10,7 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 import "./index.css";
 import LoginCallback from "./pages/LoginCallback";
 import ViewPlaylist from "./pages/ViewPlaylist";
+import LoadingPlaylist from "./pages/LoadingPlaylist";
 
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>
@@ -22,6 +23,7 @@ createRoot(document.getElementById("root")!).render(
 						<Route path='/login' element={<Login />} />
 						<Route path='/login/callback' element={<LoginCallback />} />
 						<Route path='/view-playlist' element={<ViewPlaylist />} />
+						<Route path='/loading-playlist' element={<LoadingPlaylist />} />
 						<Route element={<ProtectedRoute />}>
 							<Route path='/create-playlist' element={<CreatePlaylist />} />
 						</Route>
