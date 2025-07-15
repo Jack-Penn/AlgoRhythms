@@ -115,7 +115,7 @@ def topological_sort(tasks: List[dict]) -> List[List[dict]]:
     return stages
 
 
-async def task_generator(request: Request):
+async def task_generator(request: Request | None):
     """Generates streaming updates for playlist generation"""
     # Group tasks into parallel execution stages
     task_stages = topological_sort(TASK_DEFINITIONS)
@@ -138,12 +138,12 @@ async def task_generator(request: Request):
     }
     yield json.dumps(initial_state) + "\n\n"
 
-     # Create thread pool for synchronous tasks
+        # Create thread pool for synchronous tasks
     with concurrent.futures.ThreadPoolExecutor() as pool:
         # Process tasks in stages
         for stage in task_stages:
             # Check client connection
-            if await request.is_disconnected():
+            if request is not None and await request.is_disconnected():
                 return
 
             # Create a queue for updates from this stage
@@ -161,7 +161,7 @@ async def task_generator(request: Request):
             # Process updates as they arrive
             while tasks:
                 # Check client connection
-                if await request.is_disconnected():
+                if request is not None and await request.is_disconnected():
                     for task in tasks:
                         task.cancel()
                     return
@@ -184,7 +184,7 @@ async def task_generator(request: Request):
                     yield update
                     
                     # Immediately check for disconnection
-                    if await request.is_disconnected():
+                    if request is not None and await request.is_disconnected():
                         for task in tasks:
                             task.cancel()
                         return
@@ -256,3 +256,13 @@ async def execute_task(task, pool, all_results):
             "duration": f"{(duration_ns/1_000_000):.0f}ms",
             "error": str(e)
         }) + "\n\n"
+
+async def main():
+    """Asynchronous main testing function to run the generator."""
+    print("--- Starting Playlist Generation ---")
+    async for value in task_generator(None):
+        print(value)
+    print("--- Playlist Generation Complete ---")
+
+if __name__ == "__main__":
+    asyncio.run(main())
