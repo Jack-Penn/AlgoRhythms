@@ -5,6 +5,9 @@ from google.genai import types
 from pydantic import BaseModel
 from typing import List, cast
 import asyncio
+from PIL import Image
+from io import BytesIO
+import base64
 
 # Load environment variables
 load_dotenv(dotenv_path='./secrets.env')
@@ -174,10 +177,82 @@ async def generate_emoji(term: str) -> str:
     else:
         raise ValueError("Gemini did not respond error")
 
+async def generate_playlist_image(quality=85):
+    """
+    Generates an image, fixes type errors, converts it to Base64 JPEG,
+    and checks if it's under the size limit.
+    """
+
+    prompt = ('Hi, can you create a photorealistic image of a pig '
+                'with wings and a top hat flying over a happy '
+                'futuristic scifi city with lots of greenery?')
+
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-preview-image-generation",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+        response_modalities=['TEXT', 'IMAGE']
+        )
+    )
+
+    MAX_PAYLOAD_SIZE_KB = 256
+    MAX_PAYLOAD_SIZE_BYTES = MAX_PAYLOAD_SIZE_KB * 1024
+
+    base64_jpeg_data = None
+    jpeg_bytes = None
+
+    if response and response.candidates:
+        candidate = response.candidates[0]
+        if candidate and candidate.content and candidate.content.parts:
+            for part in candidate.content.parts:
+                if part.inline_data and part.inline_data.data:
+                    try:
+                        image_bytes = part.inline_data.data
+                        print(f"Original image size from API (PNG): {len(image_bytes) / 1024:.2f} KB")
+
+                        image = Image.open(BytesIO(image_bytes))
+
+                        # Convert to JPEG and save to an in-memory buffer
+                        jpeg_buffer = BytesIO()
+                        # Convert to RGB if it's RGBA (JPEG doesn't support alpha)
+                        if image.mode == 'RGBA':
+                            image = image.convert('RGB')
+                        image.save(jpeg_buffer, "JPEG", quality=quality) # Adjust quality as needed
+                        jpeg_bytes = jpeg_buffer.getvalue()
+
+                        # Encode the JPEG bytes to Base64
+                        base64_encoded_bytes = base64.b64encode(jpeg_bytes)
+                        base64_jpeg_data = base64_encoded_bytes.decode('utf-8')
+                        
+                        # --- Check that the size does not exceed the limit ---
+                        payload_size_bytes = len(base64_jpeg_data)
+                        payload_size_kb = payload_size_bytes / 1024
+
+                        print(f"Generated Base64 JPEG data.")
+                        print(f"Final Base64 JPEG payload size: {payload_size_kb:.2f} KB")
+
+                        if payload_size_bytes <= MAX_PAYLOAD_SIZE_BYTES:
+                            print(f"✅ Size is within the {MAX_PAYLOAD_SIZE_KB} KB limit.")
+                        else:
+                            print(f"❌ Warning: Size exceeds the {MAX_PAYLOAD_SIZE_KB} KB limit.")
+                        
+                        # Print a snippet of the Base64 string
+                        print(f"Base64 Snippet: {base64_jpeg_data[:80]}...")
+
+                        # We found and processed an image, so we can exit the loop
+                        break 
+                    
+                    except Exception as e:
+                        print(f"An error occurred during image processing: {e}")
+
+    if not base64_jpeg_data:
+        print("Could not find or process image data in the response.")
+    
+    return base64_jpeg_data, jpeg_bytes
 
 
 # Async main function
-async def main():
+async def test_weights():
     test_cases = [
         ("focused", "coding session"),
         # ("relaxed", "evening wind down"),
@@ -200,6 +275,25 @@ async def main():
         print(f"- tempo: {weights.tempo} BPM")
         print(f"- valence: {weights.valence:.2f}")
 
+async def test_image():
+    """
+    Tests the image generation, saves the result locally, and opens it.
+    """
+    test_quality = 100
+    b64_data, img_bytes = await generate_playlist_image(quality=test_quality)
+    
+    if img_bytes:
+        file_name = f"test_generated_image_quality_{test_quality}.jpeg"
+        with open(file_name, "wb") as f:
+            f.write(img_bytes)
+        print(f"\nImage saved locally as '{file_name}'")
+
+        try:
+            os.startfile(file_name)
+        except Exception as e:
+            print(f"Could not automatically display the image: {e}")
+            print(f"Please open '{file_name}' manually to view it.")
+
 # Run the async main function
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(test_image())
