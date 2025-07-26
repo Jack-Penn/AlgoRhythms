@@ -82,43 +82,40 @@ TASK_DEFINITIONS = [
 
 def topological_sort(tasks: List[dict]) -> List[List[dict]]:
     """Group tasks into parallelizable stages based on dependencies"""
-    task_map = {t["id"]: t for t in tasks}
-    # Create a dictionary to track remaining dependencies for each task
-    remaining_deps = {task_id: set(task["dependencies"]) for task_id, task in task_map.items()}
-    stages = []
-    remaining = set(task_map.keys())
-    
-    while remaining:
-        # Find tasks with no remaining dependencies
-        ready = []
-        for task_id in list(remaining):
-            # Check if all dependencies are satisfied (not in remaining)
-            if not remaining_deps[task_id]:
-                task = task_map[task_id]
-                ready.append(task)
-                remaining.remove(task_id)
+    task_map: dict[str, dict] = {t["id"]: t for t in tasks}
+
+    stages: List[List[dict]] = []
+
+    remaining_tasks: set[str] = set([t["id"] for t in tasks])
+    ready_tasks: set[str] = set()
+
+    while(remaining_tasks):
+        next_remaining: set[str] = remaining_tasks.copy()
+        next_ready: set[str] = set()
         
-        if not ready:
-            # If no tasks are ready but we still have remaining tasks, there's a cycle
-            raise ValueError("Circular dependency detected")
+        for id in remaining_tasks:
+            indeg = len([dep for dep in task_map[id]["dependencies"] if dep in remaining_tasks])
+            if indeg == 0:
+                next_remaining.remove(id)
+                next_ready.add(id)
         
-        # Add this batch to the current stage
-        stages.append(ready)
+        remaining_tasks = next_remaining
+        ready_tasks = next_ready
         
-        # Update remaining dependencies for next stage
-        for task in ready:
-            for other_id in remaining:
-                # Remove this task from other tasks' dependencies
-                if task["id"] in remaining_deps[other_id]:
-                    remaining_deps[other_id].remove(task["id"])
+        if ready_tasks:
+            stages.append([task_map[id] for id in ready_tasks])
+        else:
+            break
     
     return stages
+
 
 
 async def task_generator(request: Request | None):
     """Generates streaming updates for playlist generation"""
     # Group tasks into parallel execution stages
     task_stages = topological_sort(TASK_DEFINITIONS)
+    print (task_stages)
     # Store dependency results for passing to tasks
     all_results = {}
 
@@ -174,20 +171,27 @@ async def task_generator(request: Request | None):
                 
                 # Process updates
                 for future in done:
-                    if future in tasks:
-                        # Task completed - remove it
-                        tasks.remove(future)
-                        continue
-                    
-                    # This is an update from the queue
-                    update = future.result()
-                    yield update
-                    
-                    # Immediately check for disconnection
-                    if request is not None and await request.is_disconnected():
-                        for task in tasks:
-                            task.cancel()
-                        return
+                    try: 
+                        if future in tasks:
+                            # Task completed - remove it
+                            tasks.remove(future)
+                            continue
+                        
+                        # This is an update from the queue
+                        update = future.result()
+                        yield update
+                        
+                        # Immediately check for disconnection
+                        if request is not None and await request.is_disconnected():
+                            for task in tasks:
+                                task.cancel()
+                            return
+                    except Exception as e:
+                        yield json.dumps({
+                            "type": "error",
+                            "error": str(e),
+                            "timestamp": time.time()
+                        }) + "\n\n"
 
     # Final completion
     yield json.dumps({
