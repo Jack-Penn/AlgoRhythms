@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import uvicorn 
-from gemini_api import Weights, generate_weights, generate_emoji
+from gemini_api import Weights, generate_target_features, generate_emoji
 from spotify_auth import TokenInfo, get_access_from_user_token, handle_auth_callback, server_access
 from spotify_api import *
 from generate_playlist import task_generator
@@ -66,10 +66,10 @@ def stop_server():
 def root_endpoint():
         return {"status": "success"}
 
-@app.get("/generate-weights")
+@app.get("/generate-target-features")
 async def generate_weights_endpoint(mood: Union[str, None] = None, activity: Union[str, None] = None):
     if(mood is not None and activity is not None):
-        return await generate_weights(mood, activity)
+        return await generate_target_features(mood, activity)
     else:
         return {"error": "Activity or Mood is undefined"}
     

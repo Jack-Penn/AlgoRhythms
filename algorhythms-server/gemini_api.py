@@ -90,9 +90,9 @@ def format_playlist_examples(examples: List[PlaylistExample]) -> str:
         )
     return "\n\n".join(formatted)
 
-async def generate_weights(mood: str, activity: str) -> Weights:
+async def generate_target_features(mood: str, activity: str) -> Weights:
     """
-    Converts mood and activity descriptions into weighted playlist parameters
+    Converts mood and activity descriptions into target playlist parameters
     using Gemini's structured JSON output.
     
     Args:
@@ -133,16 +133,16 @@ async def generate_weights(mood: str, activity: str) -> Weights:
     """
     
     prompt = f"""
-    Convert this mood and activity combination into audio feature weights for playlist generation.
-    Use the following definitions for each audio feature:
-    {feature_definitions}
-    
-    Return actual BPM for tempo and dB for loudness (not normalized values).
-
+    Create appropriate audio features that match this mood and activity for selecting songs for a playlist.
     Mood: "{mood}"
     Activity: "{activity}"
 
-    Examples:
+    Use the following definitions for each audio feature:
+    {feature_definitions}
+    
+    Please return actual BPM for tempo and dB for loudness (not normalized values).
+
+    Here are some example feautre outputs:
     {format_playlist_examples(EXAMPLES)}
     """
     
@@ -252,7 +252,7 @@ async def generate_playlist_image(quality=85):
 
 
 # Async main function
-async def test_weights():
+async def test_target_features():
     test_cases = [
         ("focused", "coding session"),
         # ("relaxed", "evening wind down"),
@@ -262,7 +262,7 @@ async def test_weights():
     for mood, activity in test_cases:
         print(f"\n{'='*50}")
         print(f"Mood: {mood.upper()}, Activity: {activity.upper()}")
-        weights = await generate_weights(mood, activity)
+        weights = await generate_target_features(mood, activity)
         
         print("\nWeights:")
         print(f"- acousticness: {weights.acousticness:.2f}")
