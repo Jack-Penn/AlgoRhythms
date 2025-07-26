@@ -16,6 +16,12 @@ def create_playlist(sp: Spotify, name: str, description:str, track_uris: List[st
     sp.playlist_add_items(playlist["id"], track_uris)
     return playlist
 
+def get_top_tracks(sp:Spotify, limit, time_range="medium_term"):
+    response = sp.current_user_top_tracks(limit=limit, time_range=time_range)
+    if response is None:
+            print("Error: Received no response from Spotify API")
+            return
+    return response
 
 def print_top_tracks(sp: Spotify):
     # Get top 10 tracks
