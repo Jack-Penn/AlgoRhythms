@@ -263,10 +263,25 @@ async def execute_task(task, pool, all_results):
             "error": str(e)
         }) + "\n\n"
 
+async def test_task(task, dependencies: dict = {}):
+    from spotify_auth import initialize_algorithms_account, algorhythms_account
+    initialize_algorithms_account()
+
+    if(not dependencies.get("spotify_user_access")):
+        dependencies["spotify_user_access"] = algorhythms_account
+    if(not dependencies.get("favorite_songs")):
+        dependencies["favorite_songs"] = []
+    
+    internal, client = task(dependencies)
+    # print("Internal", internal)
+    # print("Client", client)
+
 async def main():
     """Asynchronous main testing function to run the generator."""
+    from spotify_auth import initialize_algorithms_account, algorhythms_account
+    initialize_algorithms_account()
     print("--- Starting Playlist Generation ---")
-    async for value in task_generator(None):
+    async for value in task_generator(None, algorhythms_account, None):
         print(value)
     print("--- Playlist Generation Complete ---")
 
