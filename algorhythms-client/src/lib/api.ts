@@ -1,6 +1,6 @@
 import type { AccessTokenResponse } from "./spotify/auth";
 import type { TrackObject } from "./spotify/types";
-import type { Weights } from "./types";
+import type { Features, Weights } from "./types";
 
 const BASE_URL = "http://127.0.0.1:8000";
 
@@ -20,11 +20,11 @@ const fetchAPI = async (
 	return response.json();
 };
 
-export const getGeneratedWeights = (input: {
+export const getGeneratedTargetFeatures = (input: {
 	mood: string;
 	activity: string;
-}): Promise<Weights> => {
-	return fetchAPI("generate-weights", input);
+}): Promise<Features> => {
+	return fetchAPI("generate-target-features", input);
 };
 
 export const getGenerateEmoji = (term: string): Promise<{ emoji: string }> => {
@@ -42,6 +42,7 @@ export const generatePlaylist = (
 	activity: string,
 	length: number,
 	favorite_songs: string[] | null,
+	targetProfile: Features,
 	weights: Weights,
 	auth: AccessTokenResponse | null,
 ) => {
