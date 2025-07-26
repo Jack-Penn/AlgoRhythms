@@ -108,16 +108,18 @@ def topological_sort(tasks: List[dict]) -> List[List[dict]]:
             break
     
     return stages
+# Group tasks into parallel execution stages
+task_stages = topological_sort(TASK_DEFINITIONS)
+print (task_stages)
 
-
-
-async def task_generator(request: Request | None):
+async def task_generator(request: Request | None, spotify_user_access: Spotify, favorite_songs: list[str] | None):
     """Generates streaming updates for playlist generation"""
-    # Group tasks into parallel execution stages
-    task_stages = topological_sort(TASK_DEFINITIONS)
-    print (task_stages)
+
     # Store dependency results for passing to tasks
-    all_results = {}
+    all_results = {
+        "spotify_user_access": spotify_user_access,
+        "favorite_songs": favorite_songs
+    }
 
     # Send initial task definitions and state
     initial_state = {

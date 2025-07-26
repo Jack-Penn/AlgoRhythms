@@ -1,7 +1,7 @@
 import socket
 import threading
 from typing import Optional, Union
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -90,18 +90,19 @@ async def search_tracks_endpoint(query: Union[str, None] = None):
 @app.get("/server_auth_callback")
 def server_auth_callback_endpoint(code: str, state: str):
         try:
-             print(f"Received callback with code: {code[:10]}... and state: {state}")
-             handle_auth_callback(code, state)
-             return {"status": "success"}
+            print(f"Received callback with code: {code[:10]}... and state: {state}")
+            handle_auth_callback(code, state)
+            return {"status": "success"}
         except Exception as e:
-             print(f"Error: {str(e)}")
-             return {"error": str(e)}
+            print(f"Error: {str(e)}")
+            return {"error": str(e)}
 
-class PlaylistRequest(BaseModel):
+class PlaylistRequest (BaseModel):
     weights: Weights
     auth: Optional[TokenInfo] = None
-@app.post("/create-playlist")
-async def create_playlist_endpoint(
+@app.post("/generate-playlist")
+async def generate_playlist_endpoint(
+    fastapi_request: FastAPIRequest,
     request: PlaylistRequest,
     mood: Union[str, None] = None,
     activity: Union[str, None] = None,
@@ -118,26 +119,12 @@ async def create_playlist_endpoint(
     if(favorite_songs is not None):
         favorite_songs_list = favorite_songs.split(',')
 
-    spotify_access = algorhythms_account
+    spotify_user_access = algorhythms_account
     if( request.auth is not None):
-        spotify_access = get_access_from_user_token(request.auth)
+        spotify_user_access = get_access_from_user_token(request.auth)
 
-    track_uris = ["spotify:track:04emojnbYkrRmv5qtJcgVP", "spotify:track:42UBPzRMh5yyz0EDPr6fr1", "spotify:track:2ipIPsgrgd0j2beDf4Ki70"]
-    playlist = create_playlist(spotify_access, mood + " " + activity, "[Playlist Description]", track_uris)
-
-    if playlist is None:
-        return {
-            "error": "playlist wasn't created"
-        }
-
-    return {
-        "playlist_uri": playlist["uri"],
-    }
-
-@app.get("/generate-playlist")
-async def generate_playlist_endpoint(request: Request):
     return StreamingResponse(
-        task_generator(request),
+        task_generator(fastapi_request, spotify_user_access, favorite_songs_list),
         media_type="application/x-ndjson",  # Newline-delimited JSON
         headers={"Cache-Control": "no-cache"}
     )
