@@ -122,6 +122,21 @@ def wait_for_auth(timeout: int = 300) -> bool:
 #             print(f"Token refresh failed: {str(e)}")
 #     return False
 
+def initialize_algorithms_account():
+    # First try to initialize from cache
+        if try_initialize_from_cache():
+            print("\nAuthenticated with cached token!")
+        else:
+            # Fallback to regular login flow
+            prompt_spotify_login()
+            print("Waiting for authentication...")
+            
+            # Wait for token exchange to complete (timeout after 5 minutes)    
+            if wait_for_auth(300):
+                print("\nAuthentication flow completed successfully!")
+            else:
+                print("\nAuthentication timed out. Please try again.")
+
 class TokenInfo(BaseModel):
     access_token: str
     token_type: str
