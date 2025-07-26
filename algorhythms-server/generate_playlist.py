@@ -4,8 +4,28 @@ import time
 from typing import List, Tuple
 import concurrent.futures
 from fastapi import Request
+import spotify_api
+from spotipy import Spotify
 
 # Define task functions with dependency handling
+def compile_track_list(dependencies: dict) -> Tuple[dict, dict]:
+    track_master_list = []
+
+    top_tracks = spotify_api.get_top_tracks(dependencies["spotify_user_access"], 50)
+    if(top_tracks):
+        track_master_list.extend(top_tracks["items"])
+
+    top_tracks_recent = spotify_api.get_top_tracks(dependencies["spotify_user_access"], 50, "short_term")
+    if(top_tracks_recent):
+        track_master_list.extend(top_tracks_recent["items"])
+
+    track_master_list = spotify_api.deduplicate_tracks(track_master_list)
+    print("deduped: ", len(track_master_list))
+
+    internal = {"track_master_list": track_master_list}
+    client = {"message": ""}
+    return internal, client
+
 def analyze_mood(dependencies: dict) -> Tuple[dict, dict]:
     """Simulate CPU-intensive mood analysis"""
     time.sleep(3)
@@ -50,6 +70,13 @@ def compile_results(dependencies: dict) -> Tuple[dict, dict]:
 
 # Task configuration with execution functions
 TASK_DEFINITIONS = [
+    {
+        "id": "compile_track_list",
+        "label": "Compiling Potential Tracks",
+        "description": "[todo]",
+        "function": compile_track_list,
+        "dependencies": []
+    },
     {
         "id": "mood_analysis",
         "label": "Analyzing mood parameters",
@@ -286,4 +313,4 @@ async def main():
     print("--- Playlist Generation Complete ---")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(test_task(compile_track_list))
