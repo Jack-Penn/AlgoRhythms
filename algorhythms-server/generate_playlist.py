@@ -35,26 +35,28 @@ async def compile_track_list(dependencies: dict) -> Tuple[dict, dict]:
     
     # These are also shared across all calls.
     recco_track_seeds: Set[str] = set()
-    track_master_list: List[dict] = []
 
     async def add_related_tracks(tracks: List[dict[str, Any]], limit: int):
-        # 1. Select up to 5 unique seed tracks.
+        page_seed_ids = []
+        i = 0
+
         seed_ids: list[str] = []
-        for track in tracks:
-            track_id = track.get("id")
+        while(limit > 0 and i < len(tracks)):
+            track_id = tracks[i].get("id")
+            i += 1
             if track_id and track_id not in recco_track_seeds:
                 recco_track_seeds.add(track_id)
                 seed_ids.append(track_id)
-                if len(seed_ids) >= 5:
-                    break
-        
-        if not seed_ids:
-            return
+                if len(seed_ids) == 5: # 1. Select up to 5 unique seed tracks.
+                    _limit = min(100, limit)
+                    page_seed_ids.append((_limit, seed_ids))
+                    seed_ids = []
+                    limit -= 100
 
         # 2. Get recommendations based on the seeds.
-        recommended_tracks: list = await recco_beats.get_track_reccomendations(seed_ids, target_features, limit)
-        if not recommended_tracks:
-            return
+        fetch_recommended_tracks_tasks = [recco_beats.get_track_reccomendations(_seed_ids, target_features, _limit) for _limit, _seed_ids in page_seed_ids]
+        page_recommended_tracks = await asyncio.gather(*fetch_recommended_tracks_tasks)
+        recommended_tracks = [track for sublist in page_recommended_tracks for track in sublist]
 
         # 3. Chunk the recommended tracks into groups of 50 (the Spotify API limit).
         chunk_size = 50
@@ -67,7 +69,7 @@ async def compile_track_list(dependencies: dict) -> Tuple[dict, dict]:
         async def fetch_track_chunk(chunk):
             async with shared_semaphore:
                 try:
-                    # The API call is now for a chunk of up to 50 tracks.
+                    # The API call is for a chunk of up to 50 tracks.
                     track_ids = [track["href"] for track in chunk]
                     response = await asyncio.to_thread(spotify_user_access.tracks, track_ids)
                     
@@ -88,12 +90,9 @@ async def compile_track_list(dependencies: dict) -> Tuple[dict, dict]:
     # All three calls to add_related_tracks will run concurrently.
     # They will all use the exact same `shared_semaphore`.
     await asyncio.gather(
-        add_related_tracks(top_tracks, 100),
-        add_related_tracks(top_tracks, 100),
-        add_related_tracks(top_tracks_recent, 100),
-        add_related_tracks(top_tracks_recent, 100),
-        add_related_tracks(saved_tracks, 100),
-        add_related_tracks(saved_tracks, 100)
+        add_related_tracks(top_tracks, 200),
+        add_related_tracks(top_tracks_recent, 200),
+        add_related_tracks(saved_tracks, 200),
     )
 
 
