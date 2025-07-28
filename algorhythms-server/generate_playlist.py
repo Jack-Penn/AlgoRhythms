@@ -302,7 +302,11 @@ async def test_task(task, dependencies: dict = {}):
     if(not dependencies.get("favorite_songs")):
         dependencies["favorite_songs"] = []
     
-    internal, client = task(dependencies)
+    start_time = time.perf_counter_ns()
+    internal, client = await task(dependencies)
+    duration_ns = time.perf_counter_ns() - start_time
+    print ("Duration: ", f"{(duration_ns/1_000_000):.0f}ms")
+
     # print("Internal", internal)
     # print("Client", client)
 
