@@ -1,14 +1,15 @@
 import asyncio
 import json
 import time
-from typing import List, Tuple
+from typing import Any, List, Set, Tuple
 import concurrent.futures
 from fastapi import Request
 import spotify_api
+import recco_beats
 from spotipy import Spotify
 
 # Define task functions with dependency handling
-def compile_track_list(dependencies: dict) -> Tuple[dict, dict]:
+async def compile_track_list(dependencies: dict) -> Tuple[dict, dict]:
     spotify_user_access = dependencies["spotify_user_access"]
     track_master_list = []
 
@@ -21,9 +22,84 @@ def compile_track_list(dependencies: dict) -> Tuple[dict, dict]:
     saved_tracks = spotify_api.get_saved_tracks(spotify_user_access, 100)
     track_master_list.extend(saved_tracks)
 
+    target_features: recco_beats.TargetFeatures = {
+        # "instrumentalness": 0.8,
+        # "energy": 0.2,
+        # "speechiness": 0.1,
+        # "tempo": 80,
+    }
+
+    # This semaphore is shared across all calls to add_related_tracks,
+    # limiting the total number of concurrent Spotify API calls to 10.
+    shared_semaphore = asyncio.Semaphore(10)
+    
+    # These are also shared across all calls.
+    recco_track_seeds: Set[str] = set()
+    track_master_list: List[dict] = []
+
+    async def add_related_tracks(tracks: List[dict[str, Any]], limit: int):
+        # 1. Select up to 5 unique seed tracks.
+        seed_ids: list[str] = []
+        for track in tracks:
+            track_id = track.get("id")
+            if track_id and track_id not in recco_track_seeds:
+                recco_track_seeds.add(track_id)
+                seed_ids.append(track_id)
+                if len(seed_ids) >= 5:
+                    break
+        
+        if not seed_ids:
+            return
+
+        # 2. Get recommendations based on the seeds.
+        recommended_tracks: list = await recco_beats.get_track_reccomendations(seed_ids, target_features, limit)
+        if not recommended_tracks:
+            return
+
+        # 3. Chunk the recommended tracks into groups of 50 (the Spotify API limit).
+        chunk_size = 50
+        track_chunks = [
+            recommended_tracks[i:i + chunk_size] 
+            for i in range(0, len(recommended_tracks), chunk_size)
+        ]
+
+        # 4. Define a coroutine to fetch one chunk, respecting the semaphore.
+        async def fetch_track_chunk(chunk):
+            async with shared_semaphore:
+                try:
+                    # The API call is now for a chunk of up to 50 tracks.
+                    track_ids = [track["href"] for track in chunk]
+                    response = await asyncio.to_thread(spotify_user_access.tracks, track_ids)
+                    
+                    # The response contains a list of tracks, so use extend.
+                    if response and response.get("tracks"):
+                        track_master_list.extend(response["tracks"])
+                except Exception as e:
+                    print(f"Error fetching track chunk: {e}")
+
+        # 5. Create and run concurrent tasks for each chunk.
+        fetch_tasks = [fetch_track_chunk(chunk) for chunk in track_chunks]
+        await asyncio.gather(*fetch_tasks)
+
+
+    # --- Execution ---
+    print("Adding related tracks...")
+    
+    # All three calls to add_related_tracks will run concurrently.
+    # They will all use the exact same `shared_semaphore`.
+    await asyncio.gather(
+        add_related_tracks(top_tracks, 100),
+        add_related_tracks(top_tracks, 100),
+        add_related_tracks(top_tracks_recent, 100),
+        add_related_tracks(top_tracks_recent, 100),
+        add_related_tracks(saved_tracks, 100),
+        add_related_tracks(saved_tracks, 100)
+    )
+
+
     track_master_list = spotify_api.deduplicate_tracks(track_master_list)
     print("deduped: ", len(track_master_list))
-    print([track["name"] for track in track_master_list])
+    print([track["name"] for track in track_master_list][:100])
 
     internal = {"track_master_list": track_master_list}
     client = {"message": ""}
