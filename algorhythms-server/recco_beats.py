@@ -13,33 +13,40 @@ class ReccoBeatsAPIError(Exception):
         super().__init__(f"API Error {status_code}: {error_message}")
 async def make_request(endpoint: str, params: dict[str, str | int | list[str]] = {}) -> dict[str, Any]:
     BASE_API_URL = "https://api.reccobeats.com/v1"
+    timeout = httpx.Timeout(10.0, connect=30.0)
+    max_retries = 3
+    backoff_factor = 0.5  # The base delay in seconds
 
-    timeout = httpx.Timeout(10.0, connect=30.0)  # 30 seconds connection timeout
-    
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    for attempt in range(max_retries):
         try:
-            r = await client.get(BASE_API_URL + endpoint, params=params, headers={'Accept': 'application/json'})
-            r.raise_for_status()  # Raises HTTPStatusError for 4xx/5xx responses
-            
-            response_data = r.json()
-            
-            # Check for API-specific error format
-            if "error" in response_data and "status" in response_data:
-                raise ReccoBeatsAPIError(
-                    status_code=response_data["status"],
-                    error_message=response_data["error"],
-                    response_data=response_data
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                r = await client.get(
+                    BASE_API_URL + endpoint,
+                    params=params,
+                    headers={'Accept': 'application/json'}
                 )
-            
-            return response_data
-            
+                r.raise_for_status()  # Raises an exception for 4xx or 5xx status codes
+                return r.json()
+        except (httpx.ConnectError, httpx.ReadTimeout) as e:
+            if attempt < max_retries - 1:
+                # Calculate delay with exponential backoff (e.g., 0.5s, 1s, 2s)
+                delay = backoff_factor * (2 ** attempt)
+                print(f"Network error ({type(e).__name__}). Retrying in {delay:.1f}s...")
+                await asyncio.sleep(delay)
+            else:
+                print("Network error failed after multiple retries.")
+                raise Exception(f"Network request failed after {max_retries} attempts: {e}") from e
         except httpx.HTTPStatusError as e:
-            print(f"HTTP error {e.response.status_code}: {e.response.text}")
-            raise
-        except httpx.RequestError as e:
-            print(f"Network error: {str(e)}")
-            # Suggest network diagnostics
-            raise Exception(f"Network request failed: {e}")
+            # For server errors like 500 or 503, which might also be temporary
+            if e.response.status_code >= 500 and attempt < max_retries - 1:
+                delay = backoff_factor * (2 ** attempt)
+                print(f"Server error ({e.response.status_code}). Retrying in {delay:.1f}s...")
+                await asyncio.sleep(delay)
+            else:
+                print(f"HTTP error {e.response.status_code}: {e.response.text}")
+                raise # Non-retriable client error (like 404) or final server error
+
+    raise Exception("Request failed after all retries.") # Should not be reached, but for safety
 
 async def get_track_features(spotify_ids: list[str]):
     tracks_res = await make_request("/track", {"ids": ",".join(spotify_ids)})
