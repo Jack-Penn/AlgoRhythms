@@ -9,18 +9,21 @@ from spotipy import Spotify
 
 # Define task functions with dependency handling
 def compile_track_list(dependencies: dict) -> Tuple[dict, dict]:
+    spotify_user_access = dependencies["spotify_user_access"]
     track_master_list = []
 
-    top_tracks = spotify_api.get_top_tracks(dependencies["spotify_user_access"], 50)
-    if(top_tracks):
-        track_master_list.extend(top_tracks["items"])
+    top_tracks = spotify_api.get_top_tracks(spotify_user_access, 100, "medium_term")
+    track_master_list.extend(top_tracks)
 
-    top_tracks_recent = spotify_api.get_top_tracks(dependencies["spotify_user_access"], 50, "short_term")
-    if(top_tracks_recent):
-        track_master_list.extend(top_tracks_recent["items"])
+    top_tracks_recent = spotify_api.get_top_tracks(spotify_user_access, 100, "short_term")
+    track_master_list.extend(top_tracks_recent)
+
+    saved_tracks = spotify_api.get_saved_tracks(spotify_user_access, 100)
+    track_master_list.extend(saved_tracks)
 
     track_master_list = spotify_api.deduplicate_tracks(track_master_list)
     print("deduped: ", len(track_master_list))
+    print([track["name"] for track in track_master_list])
 
     internal = {"track_master_list": track_master_list}
     client = {"message": ""}
@@ -137,7 +140,7 @@ def topological_sort(tasks: List[dict]) -> List[List[dict]]:
     return stages
 # Group tasks into parallel execution stages
 task_stages = topological_sort(TASK_DEFINITIONS)
-print (task_stages)
+print ("Task Stages:\n\t", '\n\t'.join([", ".join([task["id"] for task in stage]) for stage in task_stages]))
 
 async def task_generator(request: Request | None, spotify_user_access: Spotify, favorite_songs: list[str] | None):
     """Generates streaming updates for playlist generation"""
