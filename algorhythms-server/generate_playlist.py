@@ -40,6 +40,7 @@ async def compile_track_list_task(dependencies: dict) -> Tuple[dict, dict]:
                 print(f"Error fetching track details: {e}")
                 return []
 
+    RECCO_BATCH_SIZE = 100
     async def add_related_tracks(source_tracks: List[Dict[str, Any]], limit: int):
         """Adds related tracks for a given track list."""
         seed_batches = []
@@ -63,13 +64,13 @@ async def compile_track_list_task(dependencies: dict) -> Tuple[dict, dict]:
 
             SEED_LIMIT = 5
             if len(current_seeds) == SEED_LIMIT:
-                seed_batches.append((current_seeds, min(100, remaining_limit)))
+                seed_batches.append((current_seeds, min(RECCO_BATCH_SIZE, remaining_limit)))
                 current_seeds = []
-                remaining_limit -= 100
+                remaining_limit -= RECCO_BATCH_SIZE
 
         # Process leftover seeds if any
         if current_seeds and remaining_limit > 0:
-            seed_batches.append((current_seeds, min(100, remaining_limit)))
+            seed_batches.append((current_seeds, min(RECCO_BATCH_SIZE, remaining_limit)))
 
         # Get recommendations for all seed batches
         recommendation_coros = [
