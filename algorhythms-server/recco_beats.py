@@ -77,9 +77,9 @@ class TargetFeatures(TypedDict, total=False):
     tempo: float | str
     valence: float | str
     popularity: int | str
-async def get_track_reccomendations(count: int, seed_ids: list[str], target_features: TargetFeatures):
+async def get_track_reccomendations(seed_ids: list[str], target_features: TargetFeatures, limit: int):
     params: dict[str, str | int | list[str]] = {
-        "size": count,
+        "size": limit,
         "seeds": ",".join(seed_ids),
         **{feature: str(value) for feature, value in target_features.items()}
     }
@@ -102,7 +102,7 @@ async def test_get_track_recommendation():
 
     # Test 1: High energy, danceable tracks   
     recommendations_1 = await get_track_reccomendations(
-        count=10,
+        limit=10,
         seed_ids=random_seed_subset(),
         target_features= {
             "energy": 0.8,
@@ -115,7 +115,7 @@ async def test_get_track_recommendation():
     
     # Test 2: Acoustic, mellow tracks
     recommendations_2 = await get_track_reccomendations(
-        count=5,
+        limit=5,
         seed_ids=random_seed_subset(),
         target_features={
             "acousticness": 0.9,
@@ -129,7 +129,7 @@ async def test_get_track_recommendation():
     
     # Test 3: Instrumental, ambient music   
     recommendations_3 = await get_track_reccomendations(
-        count=15,
+        limit=15,
         seed_ids=random_seed_subset(),
         target_features={
             "instrumentalness": 0.8,
@@ -142,7 +142,7 @@ async def test_get_track_recommendation():
     
     # Test 4: Popular, upbeat tracks   
     recommendations_4 = await get_track_reccomendations(
-        count=20,
+        limit=20,
         seed_ids=random_seed_subset(),
             target_features= {
             "popularity": 80,
@@ -154,7 +154,7 @@ async def test_get_track_recommendation():
     
     # Test 5: Live performance feel   
     recommendations_5 = await get_track_reccomendations(
-        count=8,
+        limit=8,
         seed_ids=random_seed_subset(),
         target_features={
             "liveness": 0.9,
@@ -183,7 +183,6 @@ async def test_get_track_features():
 
 async def main():
     await test_get_track_recommendation()
-
 
 if __name__ == "__main__":
     asyncio.run(main())
