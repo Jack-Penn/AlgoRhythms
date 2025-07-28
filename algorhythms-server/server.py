@@ -83,7 +83,7 @@ async def generate_emoji_endpoint(term: Union[str, None] = None):
 @app.get("/search-tracks")
 async def search_tracks_endpoint(query: Union[str, None] = None):
     if(query is not None):
-        return searchTracks(server_access, query)
+        return search_tracks(server_access, query)
     else:
         return {"error": "No search query specified"}
 

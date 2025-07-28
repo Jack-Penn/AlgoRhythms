@@ -112,7 +112,7 @@ def deduplicate_tracks(tracks: list[dict]) -> list[dict]:
             unique_tracks.append(track)
             
     return unique_tracks
-def searchTracks(sp: Spotify, query: str):
+def search_tracks(sp: Spotify, query: str):
     response = sp.search(query, type="track")
     if response is None:
             print("Error: Received no response from Spotify API")
