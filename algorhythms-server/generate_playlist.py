@@ -1,7 +1,8 @@
 import asyncio
+from functools import partial
 import json
 import time
-from typing import Any, List, Set, Tuple
+from typing import Any, Callable, Coroutine, Dict, List, Set, Tuple
 import concurrent.futures
 from fastapi import Request
 import spotify_api
@@ -9,100 +10,163 @@ import recco_beats
 from spotipy import Spotify
 
 # Define task functions with dependency handling
-async def compile_track_list(dependencies: dict) -> Tuple[dict, dict]:
+
+async def compile_track_list_task(dependencies: dict) -> Tuple[dict, dict]:
+    """Compiles a master track list from various sources with related tracks."""
     spotify_user_access = dependencies["spotify_user_access"]
     track_master_list = []
-
-    top_tracks = spotify_api.get_top_tracks(spotify_user_access, 100, "medium_term")
-    track_master_list.extend(top_tracks)
-
-    top_tracks_recent = spotify_api.get_top_tracks(spotify_user_access, 100, "short_term")
-    track_master_list.extend(top_tracks_recent)
-
-    saved_tracks = spotify_api.get_saved_tracks(spotify_user_access, 100)
-    track_master_list.extend(saved_tracks)
-
-    target_features: recco_beats.TargetFeatures = {
-        # "instrumentalness": 0.8,
-        # "energy": 0.2,
-        # "speechiness": 0.1,
-        # "tempo": 80,
-    }
-
-    # This semaphore is shared across all calls to add_related_tracks,
-    # limiting the total number of concurrent Spotify API calls to 10.
-    shared_semaphore = asyncio.Semaphore(10)
+    target_features: recco_beats.TargetFeatures = {}  # Customizable target features
     
-    # These are also shared across all calls.
+    # Shared state for concurrent operations
+    CONCURRENT_SPOTIFY_API_LIMIT = 10
+    spotify_shared_semaphore = asyncio.Semaphore(CONCURRENT_SPOTIFY_API_LIMIT)
     recco_track_seeds: Set[str] = set()
+    known_track_ids: Set[str] = set()  # Tracks we already have or are fetching
 
-    async def add_related_tracks(tracks: List[dict[str, Any]], limit: int):
-        page_seed_ids = []
-        i = 0
+    seed_lock = asyncio.Lock()
+    track_list_lock = asyncio.Lock()
+    known_track_lock = asyncio.Lock()  # For known_track_ids synchronization
 
-        seed_ids: list[str] = []
-        while(limit > 0 and i < len(tracks)):
-            track_id = tracks[i].get("id")
-            i += 1
-            if track_id and track_id not in recco_track_seeds:
+    async def fetch_track_details(track_ids: List[str]) -> List[Dict[str, Any]]:
+        """Fetches full track details for a list of track IDs."""
+        async with spotify_shared_semaphore:
+            try:
+                response = await asyncio.to_thread(
+                    spotify_user_access.tracks, 
+                    track_ids
+                )
+                return response.get("tracks", []) if response else []
+            except Exception as e:
+                print(f"Error fetching track details: {e}")
+                return []
+
+    async def add_related_tracks(source_tracks: List[Dict[str, Any]], limit: int):
+        """Adds related tracks for a given track list."""
+        seed_batches = []
+        current_seeds = []
+        remaining_limit = limit
+
+        # Generate seed batches
+        for track in source_tracks:
+            if remaining_limit <= 0:
+                break
+                
+            track_id = track.get("id")
+            if not track_id:
+                continue
+
+            async with seed_lock:
+                if track_id in recco_track_seeds:
+                    continue
                 recco_track_seeds.add(track_id)
-                seed_ids.append(track_id)
-                if len(seed_ids) == 5: # 1. Select up to 5 unique seed tracks.
-                    _limit = min(100, limit)
-                    page_seed_ids.append((_limit, seed_ids))
-                    seed_ids = []
-                    limit -= 100
+                current_seeds.append(track_id)
 
-        # 2. Get recommendations based on the seeds.
-        fetch_recommended_tracks_tasks = [recco_beats.get_track_reccomendations(_seed_ids, target_features, _limit) for _limit, _seed_ids in page_seed_ids]
-        page_recommended_tracks = await asyncio.gather(*fetch_recommended_tracks_tasks)
-        recommended_tracks = [track for sublist in page_recommended_tracks for track in sublist]
+            SEED_LIMIT = 5
+            if len(current_seeds) == SEED_LIMIT:
+                seed_batches.append((current_seeds, min(100, remaining_limit)))
+                current_seeds = []
+                remaining_limit -= 100
 
-        # 3. Chunk the recommended tracks into groups of 50 (the Spotify API limit).
-        chunk_size = 50
-        track_chunks = [
-            recommended_tracks[i:i + chunk_size] 
-            for i in range(0, len(recommended_tracks), chunk_size)
+        # Process leftover seeds if any
+        if current_seeds and remaining_limit > 0:
+            seed_batches.append((current_seeds, min(100, remaining_limit)))
+
+        # Get recommendations for all seed batches
+        recommendation_coros = [
+            recco_beats.get_track_reccomendations(seeds, target_features, batch_limit)
+            for seeds, batch_limit in seed_batches
         ]
+        recommended_tracks = []
+        for batch in await asyncio.gather(*recommendation_coros):
+            recommended_tracks.extend(batch)
 
-        # 4. Define a coroutine to fetch one chunk, respecting the semaphore.
-        async def fetch_track_chunk(chunk):
-            async with shared_semaphore:
-                try:
-                    # The API call is for a chunk of up to 50 tracks.
-                    track_ids = [track["href"] for track in chunk]
-                    response = await asyncio.to_thread(spotify_user_access.tracks, track_ids)
-                    
-                    # The response contains a list of tracks, so use extend.
-                    if response and response.get("tracks"):
-                        track_master_list.extend(response["tracks"])
-                except Exception as e:
-                    print(f"Error fetching track chunk: {e}")
+        # Extract IDs from recommended tracks and filter duplicates
+        tracks_to_fetch = []
+        async with known_track_lock:
+            for track in recommended_tracks:
+                href = track.get("href")
+                if not href:
+                    continue
+                track_id = href.split("/")[-1]
+                if track_id not in known_track_ids:
+                    known_track_ids.add(track_id)
+                    tracks_to_fetch.append(track)
 
-        # 5. Create and run concurrent tasks for each chunk.
-        fetch_tasks = [fetch_track_chunk(chunk) for chunk in track_chunks]
-        await asyncio.gather(*fetch_tasks)
+        # Batch track details fetching by TRACK_CHUNK_SIZE
+        TRACK_CHUNK_SIZE = 50
+        track_chunk_details = []
+        while tracks_to_fetch:
+            chunk = tracks_to_fetch[:TRACK_CHUNK_SIZE]
+            del tracks_to_fetch[:TRACK_CHUNK_SIZE]
+            
+            # Fetch details for this chunk
+            details = await fetch_track_details([t["href"] for t in chunk])
+            track_chunk_details.extend(details)
+        
+        # Add to master list with thread safety
+        async with track_list_lock:
+            track_master_list.extend(track_chunk_details)
 
+    def process_source_tracks(fetch_func: Callable[..., List[Dict[str, Any]]], *args, **kwargs) -> asyncio.Task:
+        """
+        Creates a task to fetch tracks from a source, add them to a master list,
+        and find related tracks. The fetch function is run in a separate thread.
 
-    # --- Execution ---
-    print("Adding related tracks...")
-    
-    # All three calls to add_related_tracks will run concurrently.
-    # They will all use the exact same `shared_semaphore`.
-    await asyncio.gather(
-        add_related_tracks(top_tracks, 200),
-        add_related_tracks(top_tracks_recent, 200),
-        add_related_tracks(saved_tracks, 200),
+        'related_tracks_limit' must be provided as a keyword argument.
+        """
+        related_tracks_limit = kwargs.pop("related_tracks_limit")
+
+        async def worker():
+            """The actual async work for fetching and processing tracks."""
+            # Execute the provided blocking function in a separate thread
+            tracks = await asyncio.to_thread(fetch_func, *args, **kwargs)
+
+            # Add source tracks to master list and known IDs
+            async with track_list_lock, known_track_lock:
+                track_master_list.extend(tracks)
+                for track in tracks:
+                    if track_id := track.get("id"):
+                        known_track_ids.add(track_id)
+
+            # Immediately start processing related tracks
+            await add_related_tracks(tracks, related_tracks_limit)
+            return tracks
+
+        return asyncio.create_task(worker())
+
+    # Create and manage concurrent tasks
+    print("Fetching track sources and processing related tracks...")
+    medium_term_task = process_source_tracks(
+        spotify_api.get_top_tracks,
+        spotify_user_access,
+        limit=100,
+        time_range="medium_term",
+        related_tracks_limit=100,
+    )
+    short_term_task = process_source_tracks(
+        spotify_api.get_top_tracks,
+        spotify_user_access,
+        limit=100,
+        time_range="short_term",
+        related_tracks_limit=100,
+    )
+    saved_tracks_task = process_source_tracks(
+        spotify_api.get_saved_tracks,
+        spotify_user_access,
+        limit=100,
+        related_tracks_limit=100,
     )
 
+    # Wait for all tasks to complete
+    await asyncio.gather(medium_term_task, short_term_task, saved_tracks_task)
 
+    # Deduplicate and return results
     track_master_list = spotify_api.deduplicate_tracks(track_master_list)
-    print("deduped: ", len(track_master_list))
-    print([track["name"] for track in track_master_list][:100])
+    print(f"Final track count: {len(track_master_list)}")
+    print("Sample tracks:", [track["name"] for track in track_master_list[:100]])
 
-    internal = {"track_master_list": track_master_list}
-    client = {"message": ""}
-    return internal, client
+    return {"track_master_list": track_master_list}, {"message": ""}
+
 
 def analyze_mood(dependencies: dict) -> Tuple[dict, dict]:
     """Simulate CPU-intensive mood analysis"""
@@ -152,7 +216,7 @@ TASK_DEFINITIONS = [
         "id": "compile_track_list",
         "label": "Compiling Potential Tracks",
         "description": "[todo]",
-        "function": compile_track_list,
+        "function": compile_track_list_task,
         "dependencies": []
     },
     {
@@ -395,4 +459,4 @@ async def main():
     print("--- Playlist Generation Complete ---")
 
 if __name__ == "__main__":
-    asyncio.run(test_task(compile_track_list))
+    asyncio.run(test_task(compile_track_list_task))
