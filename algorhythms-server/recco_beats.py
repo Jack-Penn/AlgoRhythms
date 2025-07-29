@@ -48,28 +48,72 @@ async def make_request(endpoint: str, params: dict[str, str | int | list[str]] =
 
     raise Exception("Request failed after all retries.") # Should not be reached, but for safety
 
+import asyncio
+
 async def get_track_features(spotify_ids: list[str]):
-    tracks_res = await make_request("/track", {"ids": ",".join(spotify_ids)})
-
-    # Create tasks to fetch audio features for each track concurrently
-    tasks = []
-    for track in tracks_res["content"]:
-        spotify_id = track["href"].split("/")[-1]
-        # Create task for fetching audio features (passing popularity for later use)
-        task = make_request(f"/track/{track['id']}/audio-features")
-        tasks.append((spotify_id, track["popularity"], task))
-
-    # Run all feature requests in parallel
-    features_responses = await asyncio.gather(*(task for _, _, task in tasks))
-
-    # Build results dictionary
+    # Initialize feature_map with None for all Spotify IDs
     feature_map: dict[str, dict | None] = {id: None for id in spotify_ids}
-    for (spotify_id, popularity), features_data in zip(
-        [(s_id, pop) for s_id, pop, _ in tasks], 
-        features_responses
+
+    BATCH_SIZE = 40
+    batches = [spotify_ids[i:i + BATCH_SIZE] for i in range(0, len(spotify_ids), BATCH_SIZE)]
+
+    CONCURRENT_REQUEST_LIMIT = 20
+    sem = asyncio.Semaphore(CONCURRENT_REQUEST_LIMIT)  # Limit total concurrent requests to 20
+    
+    async def process_audio_features(
+        spotify_id: str, 
+        track_id: str, 
+        popularity: int
     ):
+        # Fetch audio features with semaphore control
+        try:
+            async with sem:
+                features_data = await make_request(f"/track/{track_id}/audio-features")
+        except Exception:
+            return None
+        
+        # Remove ID field and add popularity
         features_data.pop("id", None)
-        feature_map[spotify_id] = {**features_data, "popularity": popularity}
+        return (spotify_id, {**features_data, "popularity": popularity})
+
+    async def process_batch(batch: list[str]):
+        # Get batch track details (uses 1 semaphore permit)
+        try:
+            async with sem:
+                tracks_res = await make_request("/track", {"ids": ",".join(batch)})
+        except Exception:
+            return  # Leave feature_map entries as None for this batch
+        
+        # Process tracks if response contains valid content
+        if not isinstance(tracks_res.get("content"), list):
+            return
+        
+        # Prepare audio features tasks for this batch
+        audio_tasks = []
+        for track in tracks_res["content"]:
+            href = track.get("href", "")
+            spotify_id = href.split("/")[-1]
+            if spotify_id not in batch:
+                continue  # Skip if ID not in current batch
+            
+            # Create task to fetch audio features (each will use 1 semaphore permit)
+            audio_tasks.append(
+                process_audio_features(spotify_id, track['id'], track['popularity'])
+            )
+        
+        # Run audio features tasks and process results
+        results = await asyncio.gather(*audio_tasks, return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception) or result is None:
+                continue
+            if not isinstance(result, tuple) or len(result) != 2:
+                continue
+            spotify_id, features = result
+            feature_map[spotify_id] = features
+    
+    # Create and run all batch tasks concurrently
+    batch_tasks = [asyncio.create_task(process_batch(batch)) for batch in batches]
+    await asyncio.gather(*batch_tasks)
     
     return feature_map
 
