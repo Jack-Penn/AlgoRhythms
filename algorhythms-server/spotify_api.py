@@ -120,8 +120,16 @@ def search_tracks(sp: Spotify, query: str):
     return deduplicate_tracks(response["tracks"]["items"])
 
 def search_playlist(sp: Spotify, query: str, limit: int) -> list[dict]:
-    response = sp.search(query, type="playlist", limit=limit)
-    if response is None:
-            print("Error: Received no response from Spotify API")
-            return []
-    return response["playlists"]["items"]
+    response = sp.search(query, type="playlist", limit=limit,)
+     # Handle API errors or empty responses
+    if not response or "playlists" not in response:
+        print("Error: Invalid response structure from Spotify API")
+        return []
+    
+    # Extract playlist items
+    items = response["playlists"].get("items", [])
+    
+    # Filter out None values and ensure items are dictionaries
+    valid_items = [item for item in items if item]
+    
+    return valid_items
