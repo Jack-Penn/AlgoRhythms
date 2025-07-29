@@ -15,7 +15,7 @@ gemini_api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=gemini_api_key)
 
 # Define Pydantic models for structured output
-class Weights(BaseModel):
+class TargetFeatures(BaseModel):
     energy: float
     valence: float
     danceability: float
@@ -29,14 +29,14 @@ class Weights(BaseModel):
 class PlaylistExample(BaseModel):
     mood: str
     activity: str
-    weights: Weights
+    target_features: TargetFeatures
 
 # Define examples as structured objects
 EXAMPLES: List[PlaylistExample] = [
     PlaylistExample(
         mood="calm",
         activity="studying",
-        weights=Weights(
+        target_features=TargetFeatures(
             acousticness=0.8,
             danceability=0.2,
             energy=0.3,
@@ -51,7 +51,7 @@ EXAMPLES: List[PlaylistExample] = [
     PlaylistExample(
         mood="energetic",
         activity="working out",
-        weights=Weights(
+        target_features=TargetFeatures(
             acousticness=0.1,
             danceability=0.9,
             energy=0.95,
@@ -66,7 +66,7 @@ EXAMPLES: List[PlaylistExample] = [
     PlaylistExample(
         mood="melancholic",
         activity="relaxing",
-        weights=Weights(
+        target_features=TargetFeatures(
             acousticness=0.95,
             danceability=0.1,
             energy=0.2,
@@ -86,11 +86,11 @@ def format_playlist_examples(examples: List[PlaylistExample]) -> str:
     for ex in examples:
         formatted.append(
             f"- Mood: \"{ex.mood}\", Activity: \"{ex.activity}\"\n"
-            f"  Weights: {ex.weights.model_dump()}"
+            f"  TargetFeatures: {ex.target_features.model_dump()}"
         )
     return "\n\n".join(formatted)
 
-async def generate_target_features(mood: str, activity: str) -> Weights:
+async def generate_target_features(mood: str, activity: str) -> TargetFeatures:
     """
     Converts mood and activity descriptions into target playlist parameters
     using Gemini's structured JSON output.
@@ -100,7 +100,7 @@ async def generate_target_features(mood: str, activity: str) -> Weights:
         activity: Current activity (e.g., "studying", "working out")
     
     Returns:
-        Weights: Structured weights for playlist generation
+        TargetFeatures: Structured tareget features for playlist generation
     """
     
     feature_definitions = """
@@ -153,13 +153,13 @@ async def generate_target_features(mood: str, activity: str) -> Weights:
         contents=prompt,
         config={
             "response_mime_type": "application/json",
-            "response_schema": Weights,
+            "response_schema": TargetFeatures,
         }
     )
     
     # Handle response
     if response.parsed:
-        return cast(Weights, response.parsed)
+        return cast(TargetFeatures, response.parsed)
     else:
         raise ValueError(f"Failed to parse Gemini response: {response.text}")
 
@@ -262,18 +262,18 @@ async def test_target_features():
     for mood, activity in test_cases:
         print(f"\n{'='*50}")
         print(f"Mood: {mood.upper()}, Activity: {activity.upper()}")
-        weights = await generate_target_features(mood, activity)
+        target_features = await generate_target_features(mood, activity)
         
-        print("\nWeights:")
-        print(f"- acousticness: {weights.acousticness:.2f}")
-        print(f"- danceability: {weights.danceability:.2f}")
-        print(f"- energy: {weights.energy:.2f}")
-        print(f"- instrumentalness: {weights.instrumentalness:.2f}")
-        print(f"- liveness: {weights.liveness:.2f}")
-        print(f"- loudness: {weights.loudness:.1f} dB")
-        print(f"- speechiness: {weights.speechiness:.2f}")
-        print(f"- tempo: {weights.tempo} BPM")
-        print(f"- valence: {weights.valence:.2f}")
+        print("\nTargetFeatures:")
+        print(f"- acousticness: {target_features.acousticness:.2f}")
+        print(f"- danceability: {target_features.danceability:.2f}")
+        print(f"- energy: {target_features.energy:.2f}")
+        print(f"- instrumentalness: {target_features.instrumentalness:.2f}")
+        print(f"- liveness: {target_features.liveness:.2f}")
+        print(f"- loudness: {target_features.loudness:.1f} dB")
+        print(f"- speechiness: {target_features.speechiness:.2f}")
+        print(f"- tempo: {target_features.tempo} BPM")
+        print(f"- valence: {target_features.valence:.2f}")
 
 async def test_image():
     """
