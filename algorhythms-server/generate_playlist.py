@@ -158,15 +158,19 @@ async def compile_track_list_task(dependencies: dict) -> Tuple[dict, dict]:
         related_tracks_limit=100,
     )
 
-    async def add_relevant_playlist_tracks(limit: int):
-        query = "Fun, Happy, and Chill"
-        playlists = spotify_api.search_playlist(spotify_user_access, query, limit)
-        for playlist in playlists:
-            spotify_user_access.playlist_items(playlist["id"])
-
-
     # Wait for all tasks to complete
     await asyncio.gather(medium_term_task, short_term_task, saved_tracks_task)
+
+    async def add_relevant_playlist_tracks(playlist_limit: int):
+        query = "Upbeat Workout"
+        playlists = spotify_api.search_playlist(spotify_user_access, query, 10)
+        for playlist in playlists[:min(playlist_limit, len(playlists))]:
+            async with spotify_shared_semaphore:
+                response = await asyncio.to_thread(spotify_user_access.playlist_items, playlist["id"])
+                async with track_list_lock:
+                    track_master_list.extend([item["track"] for item in response["items"]])
+    
+    await add_relevant_playlist_tracks(playlist_limit=5)
 
     # Deduplicate and return results
     track_master_list = spotify_api.deduplicate_tracks(track_master_list)
