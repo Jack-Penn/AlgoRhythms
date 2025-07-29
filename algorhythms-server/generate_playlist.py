@@ -173,9 +173,13 @@ async def compile_track_list_task(dependencies: dict) -> Tuple[dict, dict]:
     await add_relevant_playlist_tracks(playlist_limit=5)
 
     # Deduplicate and return results
-    track_master_list = spotify_api.deduplicate_tracks(track_master_list)
+    track_master_list = spotify_api.deduplicate_tracks(track_master_list[: 100])
     print(f"Final track count: {len(track_master_list)}")
-    print("Sample tracks:", [track["name"] for track in track_master_list[:100]])
+    print("Sample tracks:", [track["name"] for track in track_master_list[:50]])
+
+    all_track_features = await recco_beats.get_track_features([track["id"] for track in track_master_list])
+    track_master_list_features = [(track, all_track_features[track["id"]] ) for track in track_master_list if all_track_features[track["id"]] is not None]
+    print("Sample track features:", [(track["name"], features) for (track, features) in track_master_list_features[:10]])
 
     return {"track_master_list": track_master_list}, {"message": ""}
 
