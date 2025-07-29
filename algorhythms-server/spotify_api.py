@@ -119,3 +119,9 @@ def search_tracks(sp: Spotify, query: str):
             return
     return deduplicate_tracks(response["tracks"]["items"])
 
+def search_playlist(sp: Spotify, query: str, limit: int) -> list[dict]:
+    response = sp.search(query, type="playlist", limit=limit)
+    if response is None:
+            print("Error: Received no response from Spotify API")
+            return []
+    return response["playlists"]["items"]

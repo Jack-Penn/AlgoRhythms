@@ -158,6 +158,13 @@ async def compile_track_list_task(dependencies: dict) -> Tuple[dict, dict]:
         related_tracks_limit=100,
     )
 
+    async def add_relevant_playlist_tracks(limit: int):
+        query = "Fun, Happy, and Chill"
+        playlists = spotify_api.search_playlist(spotify_user_access, query, limit)
+        for playlist in playlists:
+            spotify_user_access.playlist_items(playlist["id"])
+
+
     # Wait for all tasks to complete
     await asyncio.gather(medium_term_task, short_term_task, saved_tracks_task)
 
