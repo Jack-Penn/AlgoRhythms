@@ -149,12 +149,12 @@ class ReccoBeatsAPIClient:
         track_details_map: Dict[SpotifyTrackID, Optional[ReccoTrackDetails]] = {id:None for id in track_ids}
         for item in response.get("content", []):
             try:
-                item['id'] = ReccoTrackID(item['id']) # Instantiate ReccoTrackID explicitly
                 track_details = ReccoTrackDetails(**item)
                 spotify_id = track_details.extract_spotify_id()
                 if spotify_id:
                     track_details_map[spotify_id] = track_details
-            except Exception:
+            except Exception as e:
+                print(e)
                 pass
         return track_details_map
 
@@ -171,9 +171,11 @@ class ReccoBeatsAPIClient:
         track_features_map: Dict[ReccoTrackID, ReccoTrackFeatures] = {}
         for item in response.get("content", []):
             try:
+                recco_id =ReccoTrackID(item["id"])
                 features = ReccoTrackFeatures(**item)
-                track_features_map[ReccoTrackID(item['id'])] = features
-            except Exception:
+                track_features_map[recco_id] = features
+            except Exception as e:
+                print(e)
                 pass
         return track_features_map
 
@@ -269,7 +271,6 @@ class ReccoBeatsAPIClient:
         recommendations = []
         for item in response.get("content", []):
             try:
-                item['id'] = ReccoTrackID(item['id'])
                 recommendations.append(ReccoTrackDetails(**item))
             except Exception as e:
                 print(f"Error parsing recommendation: {e}")
@@ -281,7 +282,7 @@ async def test_get_spotify_track_details_batch(client: ReccoBeatsAPIClient):
     print("--- Testing get_spotify_track_details_batch ---")
     spotify_ids_to_test = [SpotifyTrackID("1kuGVB7EU95pJObxwvfwKS"), SpotifyTrackID("6HU7h9RYOaPRFeh0R3UeAr")]
     details_map = await client.get_spotify_track_details_batch(spotify_ids_to_test)
-    
+
     print("\n--- Results for get_spotify_track_details_batch ---")
     assert len(details_map) == 2
     for track_id, details in details_map.items():
@@ -306,7 +307,6 @@ async def test_get_recco_track_features_batch(client: ReccoBeatsAPIClient):
         else:
             print("  Features not found.")
     print("------------------------------------------------\n")
-
 
 async def test_get_spotify_track_features(client: ReccoBeatsAPIClient):
     print("--- Testing get_spotify_track_features ---")
