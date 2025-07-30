@@ -30,9 +30,14 @@ class PlaylistExample(BaseModel):
     mood: str
     activity: str
     target_features: TargetFeatures
+    def __str__(self):
+        return (
+            f"- Mood: \"{self.mood}\", Activity: \"{self.activity}\"\n"
+            f"  TargetFeatures: {self.target_features.model_dump()}"
+        )
 
 # Define examples as structured objects
-EXAMPLES: List[PlaylistExample] = [
+TARGET_FEATURE_EXAMPLES: List[PlaylistExample] = [
     PlaylistExample(
         mood="calm",
         activity="studying",
@@ -79,16 +84,6 @@ EXAMPLES: List[PlaylistExample] = [
         )
     )
 ]
-
-def format_playlist_examples(examples: List[PlaylistExample]) -> str:
-    """Converts structured examples into prompt text"""
-    formatted = []
-    for ex in examples:
-        formatted.append(
-            f"- Mood: \"{ex.mood}\", Activity: \"{ex.activity}\"\n"
-            f"  TargetFeatures: {ex.target_features.model_dump()}"
-        )
-    return "\n\n".join(formatted)
 
 async def generate_target_features(mood: str, activity: str) -> TargetFeatures:
     """
@@ -143,7 +138,7 @@ async def generate_target_features(mood: str, activity: str) -> TargetFeatures:
     Please return actual BPM for tempo and dB for loudness (not normalized values).
 
     Here are some example feautre outputs:
-    {format_playlist_examples(EXAMPLES)}
+    {'\n\n'.join(map(str, TARGET_FEATURE_EXAMPLES))}
     """
     
     # Wrap synchronous API call in thread
