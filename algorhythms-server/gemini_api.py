@@ -159,18 +159,38 @@ async def generate_target_features(mood: str, activity: str) -> TargetFeatures:
         raise ValueError(f"Failed to parse Gemini response: {response.text}")
 
 async def generate_emoji(term: str) -> str:
-    response = await asyncio.to_thread(
-        client.models.generate_content,
-        model="gemini-2.5-flash-lite-preview-06-17",
-        contents=f"please generate a single emoji that most closely represents the given input. Only generate one emoji character. input: {term}",
-        config={}
-    )
-    if response.text:
-        if len(response.text) > 2:
-            raise ValueError("Gemini did not respond with a single emoji")
-        return response.text
-    else:
-        raise ValueError("Gemini did not respond error")
+    import emoji
+    default_emoji = "❓"
+
+    try:
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.5-flash",
+            contents=(
+                "Generate a single emoji that most closely represents the given "
+                "input. Only generate one emoji character, and nothing else. "
+                f"Input: {term}"
+            )
+        )
+
+        if not response.text:
+            return default_emoji
+        
+        candidate = response.text.strip()
+
+        # Validate that the entire response string is one single emoji.
+        if candidate and emoji.emoji_count(candidate) == 1:
+            # Extract the emoji to ensure no surrounding text is present.
+            emojis_found = emoji.distinct_emoji_list(candidate)
+            if len(emojis_found) == 1 and emojis_found[0] == candidate:
+                return candidate
+
+    except Exception as e:
+        # For production code, you might want to log this error.
+        print(f"An error occurred while generating an emoji for '{term}': {e}")
+    
+    # If any part of the process fails, return the default.
+    return default_emoji
 
 async def generate_playlist_image(quality=85):
     """
