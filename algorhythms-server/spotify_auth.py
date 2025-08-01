@@ -4,16 +4,15 @@ import random
 import string
 import threading
 import webbrowser
-from typing import cast
+from typing import Tuple, cast
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from spotipy import Spotify
 from spotipy.cache_handler import CacheFileHandler, MemoryCacheHandler
 from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
-from spotify_api import spotify_api_client
 
-# --- 1. Configuration ---
+# --- Configuration ---
 # Load environment variables from a .env file
 load_dotenv(dotenv_path='./secrets.env')
 
@@ -32,7 +31,7 @@ SCOPES = [
 TOKEN_CACHE_PATH = "spotify_token_cache.txt"
 
 
-# --- 2. Data Models ---
+# --- Data Models ---
 
 class TokenInfo(BaseModel):
     """Pydantic model for validating token data."""
@@ -44,14 +43,14 @@ class TokenInfo(BaseModel):
     scope: str
 
 
-# --- 3. Authenticator Class ---
+# --- Authenticator Class ---
 
 class SpotifyUserAuthenticator:
     """Handles the Spotify user authentication flow."""
 
     def __init__(self):
         self.client = Spotify()
-        self.token_obtained_event = threading.Event()
+        self.token_obtained_event = asyncio.Event()
 
     def _initialize_oauth(self) -> SpotifyOAuth:
         """Creates and returns a SpotifyOAuth instance."""
@@ -100,26 +99,30 @@ class SpotifyUserAuthenticator:
         print(f"Opening browser for Spotify login: {auth_url}")
         webbrowser.open(auth_url, new=2, autoraise=True)
 
-    def _wait_for_auth(self, timeout: int = 300) -> bool:
-        """Waits for the authentication callback to be handled."""
+    async def _wait_for_auth(self, timeout: int = 300) -> bool:
+        """Waits asynchronously for the authentication callback."""
         print("Waiting for authentication...")
         try:
-            return self.token_obtained_event.wait(timeout=timeout)
+            # await the asyncio.Event
+            await asyncio.wait_for(self.token_obtained_event.wait(), timeout=timeout)
+            return True
+        except asyncio.TimeoutError:
+            print("\nAuthentication timed out.")
+            return False
         except KeyboardInterrupt:
             print("\nAuthentication wait cancelled by user.")
             return False
 
-    def authenticate(self) -> Spotify:
+    async def authenticate(self) -> Spotify:
         """
         Main method to orchestrate the authentication process.
-        
         Returns a fully authenticated Spotipy client instance.
         """
         if self._try_auth_from_cache():
             print("\nAuthenticated successfully using cached token!")
         else:
             self._prompt_user_login()
-            if self._wait_for_auth():
+            if await self._wait_for_auth():
                 print("\nAuthentication flow completed successfully!")
             else:
                 print("\nAuthentication timed out or was cancelled.")
@@ -142,7 +145,7 @@ class SpotifyUserAuthenticator:
         self.token_obtained_event.set()
 
 
-# --- 4. Standalone Utilities ---
+# --- Standalone Utilities ---
 
 def get_server_access_client() -> Spotify:
     """Returns a client authenticated with the Client Credentials Flow (server-to-server)."""
@@ -165,33 +168,51 @@ def get_client_from_user_token(token_info: TokenInfo) -> Spotify:
     )
     return Spotify(auth_manager=oauth)
 
+# --- Asynchronous Initializer ---
 
-# --- 5. Example Usage ---
+# Module-level placeholders for our clients
+_server_access: Spotify | None = None
+_algorhythms_account: Spotify | None = None
 
-async def main():
-    # Example of getting a user-authenticated client
-    authenticator = SpotifyUserAuthenticator()
+async def get_spotify_clients() -> Tuple[Spotify, Spotify]:
+    """
+    Initializes and returns the shared Spotify client instances.
+    Uses a singleton pattern to ensure initialization happens only once.
+    """
+    from spotify_api import spotify_api_client
+
+    global _server_access, _algorhythms_account
+
+    # If clients are already initialized, return them immediately
+    if _server_access and _algorhythms_account:
+        return _server_access, _algorhythms_account
+
+    # Initialize the server-to-server client
+    print("Initializing server-to-server client...")
+    _server_access = get_server_access_client()
+    print("✅ Server-to-server client is ready.")
+    print("-" * 20)
     
-    # In a real app, you'd run the web server in a separate thread
-    # and call handle_auth_callback from the server's route handler.
-    # For this example, we'll just run the authentication flow.
-    
-    algorhythms_account = authenticator.authenticate()
+    # Initialize the user-authenticated client
+    print("Initializing user-authenticated client ('algorhythms_account')...")
+    _authenticator = SpotifyUserAuthenticator()
+    # Use the async version of authenticate
+    _algorhythms_account = await _authenticator.authenticate() 
 
-    user = None
-
-    # Now `algorhythms_account` is ready to use
-    if authenticator.token_obtained_event.is_set():
-        user = await spotify_api_client.get_user(algorhythms_account)
-
-    if user:
-        print(f"\nSuccessfully authenticated as: {user.display_name} ({user.id})")
+    # Verify user authentication
+    if _authenticator.token_obtained_event.is_set():
+        try:
+            # We need to await get_user now
+            user_info = await spotify_api_client.get_user(_algorhythms_account)
+            if user_info:
+                print(f"✅ User client authenticated for: {user_info.display_name} ({user_info.id})")
+        except Exception as e:
+            print(f"❌ Could not fetch user info after authentication: {e}")
     else:
-        print("\nCould not authenticate.")
-
-    # Example of getting a server-to-server client
-    server_client = get_server_access_client()
-    print("\nServer-to-server client created.")
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        print("❌ User client authentication failed or was cancelled.")
+    
+    # Ensure clients are not None before returning
+    if not _server_access or not _algorhythms_account:
+        raise RuntimeError("Failed to initialize Spotify clients.")
+        
+    return _server_access, _algorhythms_account
