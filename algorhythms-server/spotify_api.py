@@ -294,6 +294,8 @@ class SpotifyAPIClient:
         )
         return  [SpotifyPlaylist(**item) for item in items if item] # Filter out None values
 
+spotify_api_client = SpotifyAPIClient() # exported shared client instance
+
 # --- Test Functions ---
 
 async def test_create_playlist(client: SpotifyAPIClient, sp: Spotify):
@@ -335,10 +337,10 @@ async def test_search_playlist(client: SpotifyAPIClient, sp: Spotify):
     print("-" * 30)
 
 async def main():
-    from spotify_auth import initialize_algorithms_account, algorhythms_account
+    from spotify_auth import get_spotify_clients
     client = SpotifyAPIClient()
-    initialize_algorithms_account()
-    sp = algorhythms_account
+    _, algorithms_account = await get_spotify_clients()
+    sp = algorithms_account
 
     await test_create_playlist(client, sp)
     await test_get_top_tracks(client, sp)
