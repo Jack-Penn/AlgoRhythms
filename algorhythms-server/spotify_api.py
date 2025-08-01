@@ -219,12 +219,17 @@ class SpotifyAPIClient:
 
         return all_items
 
-    async def create_playlist(self, sp: Spotify, playlist_name: str, description:str, track_uris: List[SpotifyTrackURI]) -> Optional[SpotifyPlaylist]:
+    async def get_user(self, sp: Spotify) -> Optional[SpotifyUser]:
         user_response = await self._make_request(sp.current_user)
         if not user_response:
             print("Error creating fetching user")
             return None
-        user = SpotifyUser(**user_response)
+        return SpotifyUser(**user_response)
+
+    async def create_playlist(self, sp: Spotify, playlist_name: str, description:str, track_uris: List[SpotifyTrackURI]) -> Optional[SpotifyPlaylist]:
+        user = await self.get_user(sp)
+        if not user:
+            return
         playlist_response = await self._make_request(lambda: sp.user_playlist_create(user.id, playlist_name, public=True, description=description))
         if not playlist_response:
             print("Error creating playlist")
