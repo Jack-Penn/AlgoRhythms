@@ -21,7 +21,7 @@ class KDTree(Generic[Data, Point]):
     root: Optional[KDNode[Data, Point]]
     k: int
 
-    def __init__(self, data_points: Sequence[DataPoint[Data, Point]]) -> None:
+    def __init__(self, data_points: Sequence[Tuple[Data, Point]]) -> None:
         if not data_points:
             self.root = None
             self.k = 0
