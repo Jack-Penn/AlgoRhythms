@@ -342,6 +342,25 @@ async def playlist_task_generator(
         "target_features": target_features,
         "playlist_length": playlist_length,
     }
+
+    # Extract the public-facing details from our task definitions.
+    initial_tasks = [
+        {
+            "id": task.id,
+            "label": task.label,
+            "description": task.description,
+            "status": "pending" # Start all tasks as pending
+        }
+        for task in TASK_DEFINITIONS
+    ]
+    initial_payload = {
+        "type": "initial",
+        "timestamp": time.time(),
+        "tasks": initial_tasks
+    }
+    # Yield the initial payload immediately.
+    yield json.dumps(initial_payload) + "\n\n"
+
     runner = TaskRunner(TASK_DEFINITIONS, initial_deps)
     try:
         async for update in runner.run_generator(request):
