@@ -293,7 +293,8 @@ class SpotifyAPIClient:
             func=sp.search,
             args={
                 "q": query,
-                "type": "playlist"
+                "type": "playlist",
+                "market": "US"
             },
             limit=limit,
             extract_items=lambda response: response["playlists"]["items"]

@@ -73,7 +73,7 @@ class TrackListCompiler:
 
     def _create_recommended_track_producer(self, seed_ids: List[SpotifyTrackID]) -> pc.ProduceBatchCallback:
         async def recommended_track_producer():
-            recco_tracks = await self.recco_client.get_spotify_track_recommendations(seed_ids, self.target_features, limit=40)
+            recco_tracks = await self.recco_client.get_spotify_track_recommendations(seed_ids, None, limit=40)
             async with self.seen_tracks_lock:
                 unseen_recco_tracks = []
                 for track in recco_tracks:
@@ -155,12 +155,18 @@ class TrackListCompiler:
             self.feature_fetch_pc.start()
         )
         
+        # Used for small scale testing
+        # initial_producers = [
+        #     self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=50, time_range="medium_term"), rec_batches=0),
+        # ]
+        
         # Add initial producers. They will dynamically add more producers to other pipelines.
         initial_producers = [
-            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=100, time_range="medium_term"), rec_batches=10),
-            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=100, time_range="short_term"), rec_batches=10),
+            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=100, time_range="long_term"), rec_batches=5),
+            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=200, time_range="medium_term"), rec_batches=10),
+            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=200, time_range="short_term"), rec_batches=10),
             self._create_primary_track_producer(self.spotify_client.get_saved_tracks(self.sp, limit=100), rec_batches=10),
-            self._create_playlists_tracks_producer(limit=10, track_limit=100)
+            self._create_playlists_tracks_producer(limit=3, track_limit=30)
         ]
         await self.primary_tracks_pc.add_producers(initial_producers)
         
