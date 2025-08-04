@@ -12,7 +12,6 @@ import inspect
 import json
 import time
 from typing import Dict, Literal, Tuple, Any, AsyncGenerator, Awaitable, Callable, Dict, List, Optional, Set, Tuple
-import concurrent.futures
 from fastapi import Request
 from pydantic import BaseModel
 from _types import *
@@ -29,6 +28,10 @@ class TaskID(NamedStringType):
 InternalResult = Dict[str, Any]
 ClientResult = Dict[str, Any]
 TaskResult = Tuple[InternalResult, ClientResult]
+class CompletedTaskData(BaseModel):
+    """Holds the data and metadata from a completed task."""
+    payload: InternalResult
+    duration_ms: float
 
 class ProgressUpdate(Dict[str, Any]):
     pass
@@ -83,6 +86,35 @@ async def process_audio_task(deps: DependencyDict, result: ResultCallback) -> Ge
     # Return final result
     result(({}, {"message": "Audio processing complete"}))
 
+class PlaylistResponse(BaseModel):
+    tracks: List[SpotifyTrack]
+    generation_time: float
+
+async def compile_final_results_task(deps: DependencyDict) -> TaskResult:
+    """
+    Gathers results from all playlist-generating tasks and assembles the final response.
+    """
+    final_playlists = {}
+    metadata = deps.get("_dependency_metadata", {})
+
+    # Check for the data we need to build the KD-Tree playlist
+    if "kd_tree_playlist_tracks" in deps:
+        build_duration = metadata.get(TaskID("build_kd_tree"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
+        find_duration = metadata.get(TaskID("find_kd_tree_nearest_neighbors"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
+        
+        # Create the final client-facing object right here
+        kd_playlist = PlaylistResponse(
+            tracks=deps["kd_tree_playlist_tracks"],
+            generation_time=(build_duration + find_duration)
+        )
+        final_playlists["kd_tree_playlist"] = kd_playlist.model_dump()
+    
+    # This task's InternalResult is the final payload.
+    internal_result = {"final_compiled_playlists": final_playlists}
+    client_result = {"message": f"Successfully compiled {len(final_playlists)} playlists."}
+
+    return internal_result, client_result
+
 _seen_task_ids: Set[TaskID] = set()
 def define_task(**data: Any) -> Task:
     id = data.get("id", None)
@@ -119,6 +151,12 @@ TASK_DEFINITIONS: List[Task] = [
         function=find_kd_tree_nearest_neighbors_task, 
         dependencies=["build_kd_tree"]
     ),
+    define_task(
+        id="compile_final_results", 
+        label="Compiling Final Results", 
+        description="...",
+        function=compile_final_results_task, 
+        dependencies=["find_kd_tree_nearest_neighbors"]
     )
 ]
 
@@ -132,7 +170,7 @@ class TaskRunner:
         
         self.completed_tasks: Set[TaskID] = set()
         self.failed_tasks: Set[TaskID] = set()
-        self.internal_task_results: Dict[TaskID, InternalResult] = {}
+        self.internal_task_results: Dict[TaskID, CompletedTaskData] = {}
         self.running_tasks: Dict[TaskID, asyncio.Task] = {}
         
         # Concurrency and signaling
@@ -166,47 +204,66 @@ class TaskRunner:
         """Runs a single task and puts all its updates onto the shared queue."""
         start_time = time.perf_counter_ns()
         deps: Dict[str, Any] = self.initial_deps.copy()
+
+        dependency_metadata: Dict[TaskID, CompletedTaskData] = {}
+
         for dep_id in task.dependencies:
-            deps.update(self.internal_task_results.get(dep_id, {}))
+            if dep_id in self.internal_task_results:
+                task_result_data = self.internal_task_results[dep_id]
+                deps.update(task_result_data.payload)
+                dependency_metadata[dep_id] = task_result_data
         
-        try:
-            await self.task_update_queue.put(self._format_update(task.id, status="running"))
-            
-            final_result: Optional[TaskResult] = None
-            if inspect.isasyncgenfunction(task.function):
+        # Inject the metadata dictionary under a special, non-colliding key.
+        deps["_dependency_metadata"] = dependency_metadata
 
-                def result_callback(result: TaskResult):
-                    nonlocal final_result
-                    final_result = result
+        raised_exception: Optional[Exception] = None
+        final_result: Optional[TaskResult] = None
 
-                task_gen = task.function(deps, result_callback)
-                async for progress in task_gen:
-                    await self.task_update_queue.put(self._format_update(task.id, "progress", data=progress))
-                    if final_result:
-                        break
-            elif inspect.iscoroutinefunction(task.function):
-                final_result = await task.function(deps)
-
-            if not final_result:
-                raise ValueError(f"Task {task.id} did not produce a final result.")
-
+        with Stopwatch() as stopwatch:
+            try:
+                await self.task_update_queue.put(self._format_update(task.id, status="running"))
+                
+                if inspect.isasyncgenfunction(task.function):
+                    def result_callback(result: TaskResult):
+                        nonlocal final_result
+                        final_result = result
+                    task_gen = task.function(deps, result_callback)
+                    async for progress in task_gen:
+                        await self.task_update_queue.put(self._format_update(task.id, "progress", data=progress))
+                        if final_result:
+                            break
+                elif inspect.iscoroutinefunction(task.function):
+                    final_result = await task.function(deps)
+                
+                if not final_result:
+                    raise ValueError(f"Task {task.id} did not produce a final result.")
+            except Exception as e:
+                raised_exception = e
+        
+        duration = stopwatch.get_time_ms()
+        
+        if raised_exception:
+            self.failed_tasks.add(task.id)
+            # Don't report duration for cancellations, as the task was aborted.
+            if isinstance(raised_exception, asyncio.CancelledError):
+                await self.task_update_queue.put(self._format_update(task.id, "failed", error="Task was cancelled."))
+            else:
+                await self.task_update_queue.put(self._format_update(
+                    task.id, "failed", error=str(raised_exception), duration=duration
+                ))
+            raise raised_exception
+        
+        # Success case
+        if final_result:
             internal_result, client_result = final_result
-            self.internal_task_results[task.id] = internal_result
             self.completed_tasks.add(task.id)
-            duration = (time.perf_counter_ns() - start_time) / 1_000_000
+            self.internal_task_results[task.id] = CompletedTaskData(
+                payload=internal_result,
+                duration_ms=duration
+            )
             await self.task_update_queue.put(self._format_update(
                 task.id, "completed", data=client_result, duration=duration
             ))
-        except asyncio.CancelledError:
-            await self.task_update_queue.put(self._format_update(task.id, "failed", error="Task was cancelled."))
-            raise
-        except Exception as e:
-            duration = (time.perf_counter_ns() - start_time) / 1_000_000
-            self.failed_tasks.add(task.id) # Mark as failed, NOT completed.
-            await self.task_update_queue.put(self._format_update(
-                task.id, "failed", error=str(e), duration=duration
-            ))
-            raise # The exception is passed to the done_callback.
 
     async def _cancel_all_running_tasks(self):
         """Cancels all tasks currently in self.running_tasks."""
@@ -294,7 +351,12 @@ async def playlist_task_generator(
         error_payload = {"type": "error", "message": f"Task runner failed: str{e}"}
         yield json.dumps(error_payload) + "\n\n"
     finally:
-        yield json.dumps({"type": "final", "timestamp": time.time()}) + "\n\n"
+        final_res = {"type": "final", "timestamp": time.time(), "data": {}}
+        aggregator_results = runner.internal_task_results.get(TaskID("compile_final_results"))
+        print("aggregator_results", aggregator_results)
+        if aggregator_results and "final_compiled_playlists" in aggregator_results.payload:
+            final_res["data"] = aggregator_results.payload["final_compiled_playlists"]
+        yield json.dumps(final_res) + "\n\n"
 
 async def main():
     """An asynchronous main function to run the full generator for standalone testing."""
