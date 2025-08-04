@@ -10,6 +10,7 @@ from gemini_api import generate_target_features, generate_emoji
 from spotify_auth import TokenInfo, get_spotify_clients
 from spotify_api import spotify_api_client
 from spotipy import Spotify
+from recco_beats import ReccoTrackFeatures
 
 # Run command: fastapi dev server.py
 HOST = "127.0.0.1"
@@ -124,7 +125,7 @@ def server_auth_callback_endpoint(code: str, state: str):
         """
 
 class PlaylistRequest (BaseModel):
-    targetFeatures: Any
+    target_features: ReccoTrackFeatures
     weights: Any
     auth: Optional[TokenInfo] = None
 @app.post("/generate-playlist")
@@ -133,10 +134,10 @@ async def generate_playlist_endpoint(
     request: PlaylistRequest,
     mood: Optional[str] = None,
     activity: Optional[str] = None,
-    length: Optional[str] = None,
+    length: Optional[int] = None,
     favorite_songs: Optional[str] = None
 ):
-    from generate_playlist import task_generator
+    from generate_playlist import playlist_task_generator
     
     from spotify_auth import get_client_from_user_token
 
@@ -157,7 +158,7 @@ async def generate_playlist_endpoint(
         _, sp = await get_spotify_clients()
 
     return StreamingResponse(
-        task_generator(fastapi_request, sp, favorite_songs_list),
+        playlist_task_generator(fastapi_request, sp, request.target_features, length),
         media_type="application/x-ndjson",  # Newline-delimited JSON
         headers={"Cache-Control": "no-cache"}
     )

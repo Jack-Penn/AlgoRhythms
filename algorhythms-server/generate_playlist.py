@@ -55,6 +55,21 @@ async def compile_track_list_task(deps: DependencyDict) -> TaskResult:
     track_data_points = await track_compiler.compile()
     return {"track_data_points": track_data_points}, {"message": f"Compiled {len(track_data_points)} total tracks"}
 
+async def build_kd_tree_task(deps: DependencyDict) -> TaskResult:
+    track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
+    track_data_points = [(track, features.model_dump()) for track, features in track_list]
+    kd_tree = KDTree(track_data_points)
+    return {"kd_tree": kd_tree}, {}
+
+async def find_kd_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskResult:
+    kd_tree: KDTree = deps["kd_tree"]
+    target_features = deps['target_features']
+    playlist_length = deps["playlist_length"]
+    neighbors = kd_tree.nearest_neighbors(target_features.model_dump(), limit=playlist_length)
+    return {"kd_tree_playlist_tracks": neighbors}, {}
+
+# async def build_graph(deps: DependencyDict) -> TaskResult:
+#     pass
 
 async def process_audio_task(deps: DependencyDict, result: ResultCallback) -> GeneratorResults:
     # Actual implementation would go here
@@ -91,11 +106,19 @@ TASK_DEFINITIONS: List[Task] = [
         dependencies=[]
     ),
     define_task(
-        id="process_audio", 
-        label="Processing Audio", 
+        id="build_kd_tree", 
+        label="Building KD-Tree", 
         description="...",
-        function=process_audio_task, 
+        function=build_kd_tree_task, 
         dependencies=["compile_track_list"]
+    ),
+    define_task(
+        id="find_kd_tree_nearest_neighbors", 
+        label="Searching Nearest Neighbors in KD-Tree", 
+        description="...",
+        function=find_kd_tree_nearest_neighbors_task, 
+        dependencies=["build_kd_tree"]
+    ),
     )
 ]
 
@@ -249,12 +272,19 @@ class TaskRunner:
             # Ensure all tasks are cancelled on exit
             await self._cancel_all_running_tasks()
 
+
 async def playlist_task_generator(
-        request: Optional[Request],
-        spotify_user_access: Spotify
+    request: Optional[Request],
+    spotify_user_access: Spotify,
+    target_features: ReccoTrackFeatures,
+    playlist_length: int,
 ):
     '''Main API entrypoint that creates and runs the TaskRunner.'''
-    initial_deps = {"spotify_user_access": spotify_user_access}
+    initial_deps = {
+        "spotify_user_access": spotify_user_access,
+        "target_features": target_features,
+        "playlist_length": playlist_length,
+    }
     runner = TaskRunner(TASK_DEFINITIONS, initial_deps)
     try:
         async for update in runner.run_generator(request):
@@ -272,7 +302,22 @@ async def main():
     _, algorhythms_account = await get_spotify_clients()
     
     print("--- Starting Dynamic Playlist Generation Test ---")
-    async for value in playlist_task_generator(None, algorhythms_account):
+    async for value in playlist_task_generator(
+        request=None, 
+        spotify_user_access=algorhythms_account,
+        target_features=ReccoTrackFeatures(
+            acousticness=0.5,
+            danceability=0.1,
+            energy=1,
+            instrumentalness=0.5,
+            liveness=0.1,
+            loudness=0.5,
+            speechiness=0.2,
+            tempo=250,
+            valence=0.5
+        ),
+        playlist_length=10
+    ):
         print(value, end="")
     print("\n--- Playlist Generation Complete ---")
 
