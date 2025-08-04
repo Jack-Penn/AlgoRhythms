@@ -17,6 +17,11 @@ from fastapi import Request
 from pydantic import BaseModel
 from _types import *
 from spotipy import Spotify
+from track_compiler import TrackListCompiler
+from kd_tree import KDTree
+from  spotify_api import SpotifyTrack
+from  recco_beats import ReccoTrackFeatures
+from timing import Stopwatch
 
 class TaskID(NamedStringType):
     pass
@@ -44,9 +49,12 @@ class Task(BaseModel):
 # Task Definitions
 
 async def compile_track_list_task(deps: DependencyDict) -> TaskResult:
-    # Example usage: spotify = deps["spotify_user_access"]
-    await asyncio.sleep(1)
-    return {"track_list": 100}, {"message": "Tracks compiled successfully"}
+    spotify = deps["spotify_user_access"]
+    target_features = deps['target_features']
+    track_compiler = TrackListCompiler(spotify, target_features)
+    track_data_points = await track_compiler.compile()
+    return {"track_data_points": track_data_points}, {"message": f"Compiled {len(track_data_points)} total tracks"}
+
 
 async def process_audio_task(deps: DependencyDict, result: ResultCallback) -> GeneratorResults:
     # Actual implementation would go here
