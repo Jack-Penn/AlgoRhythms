@@ -60,7 +60,7 @@ class KDTree(Generic[Data, Point]):
 
         self.root = build_tree(data_points)
     
-    def nearest_neighbor(self, target: Point, limit: int = 1) -> List[Optional[Data]]:
+    def nearest_neighbors(self, target: Point, limit: int = 1) -> List[Optional[Data]]:
         if self.root is None or limit <= 0:
             return [None] * limit
             
@@ -147,7 +147,7 @@ def run_tests():
     # --- Test 1: Verify the corrected code works ---
     print("\n--- Testing Corrected Code ---")
     kd_tree = KDTree(data_points_2d)
-    kdtree_result = kd_tree.nearest_neighbor(target_2d, limit)
+    kdtree_result = kd_tree.nearest_neighbors(target_2d, limit)
     print(f"Corrected KD-Tree result (limit={limit}): {kdtree_result}")
     
     # --- Test 2: Compare corrected code against brute-force ---
