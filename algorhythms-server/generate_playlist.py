@@ -25,6 +25,7 @@ from  recco_beats import ReccoTrackFeatures
 from timing import Stopwatch
 from gemini_api import generate_playlist_name
 import datetime
+from adj_matrix import Adj_Matrix
 
 class TaskID(NamedStringType):
     pass
@@ -98,6 +99,27 @@ async def find_ball_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskRes
     neighbors = ball_tree.nearest_neighbors(target_features.model_dump(), limit=playlist_length)
     return {"ball_tree_playlist_tracks": neighbors}, {"message": f"Found best {len(neighbors)} tracks that match your vibe"}
 
+async def build_adj_matrix_graph(deps: DependencyDict) -> TaskResult:
+    track_list: List[Tuple[SpotifyTrack,ReccoTrackFeatures]] = deps["track_data_points"]
+    track_data_points = [(track, features.model_dump()) for track, features in track_list]
+    adjMatrix = Adj_Matrix(track_data_points)
+    return {"adj_matrix": adjMatrix} , {"message" : "Data structure for dense graphs"}
+
+async def get_k_closest_songs(deps: DependencyDict) -> TaskResult:
+    track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
+    track_data_points: List[Tuple[Dict,Dict[str, float]]] = [(track.model_dump(), features.model_dump()) for track, features in track_list]
+    adjMatrix:Adj_Matrix = deps["adj_matrix"]
+    target_features = deps['target_features']
+    playlist_length = deps["playlist_length"]
+    # Step 1: get that center index
+    center_index = adjMatrix.find_closest_song(track_data_points, target_features, adjMatrix.feature_keys)
+
+
+    # Step 2: get k closest songs to that
+    neighbor_indices = adjMatrix.get_k_closest_songs( center_index, playlist_length)
+    list = [track_data_points[i][0] for i in neighbor_indices]
+
+    return {"adj_matrix_playlist_tracks" : list} , {"message" :f"Found {len(neighbor_indices)} tracks that match your vibe" }
 
 # async def build_graph(deps: DependencyDict) -> TaskResult:
 #     pass
@@ -181,6 +203,17 @@ async def compile_final_results_task(deps: DependencyDict) -> TaskResult:
             search_time=find_duration
         )
         final_playlists["ball_tree_playlist"] = ball_playlist.model_dump()
+
+    if "adj_matrix_playlist_tracks" in deps:
+        build_duration = metadata.get(TaskID("build_adj_matrix"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
+        find_duration = metadata.get(TaskID("get_k_closest_songs"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
+
+        adj_matrix_playlist = PlaylistResponse(
+            tracks= deps["adj_matrix_playlist_tracks"],
+            build_time = build_duration ,
+            search_time= find_duration
+        )
+        final_playlists["adj_matrix_playlist"] = adj_matrix_playlist.model_dump()
     
     # This task's InternalResult is the final payload.
     internal_result = {"final_compiled_playlists": final_playlists, "playlist_id": playlist_id}
@@ -244,6 +277,20 @@ TASK_DEFINITIONS: List[Task] = [
         description="Searching the ball tree for the songs with audio features closest to the ones you've requested. This is where the magic happens.",
         function=find_ball_tree_nearest_neighbors_task, 
         dependencies=["build_ball_tree"]
+    ),
+    define_task(
+        id="build_adj_matrix",
+        label="Building Adjacency Matrix Graph",
+        description="Organizing your music into a 2 x 2 matrix. ",
+        function=build_adj_matrix_graph,
+        dependencies=["compile_track_list"]
+    ),
+    define_task(
+        id="get_k_closest_songs",
+        label="Finding Vibe Matches",
+        description="Searching the Adjacency Matrix Graph for the songs with audio features closest to the ones you've requested.",
+        function=get_k_closest_songs,
+        dependencies=["compile_track_list" , "build_adj_matrix"]
     ),
     define_task(
         id="create_playlist", 
