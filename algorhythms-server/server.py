@@ -1,21 +1,21 @@
 import socket
 import threading
-from typing import Optional, Union
+from typing import Any, List, Optional, Union
 from fastapi import FastAPI, Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 import uvicorn 
-from gemini_api import Weights, generate_target_features, generate_emoji
-from spotify_auth import TokenInfo, get_access_from_user_token, handle_auth_callback, server_access
-from spotify_api import *
-from generate_playlist import task_generator
+from gemini_api import generate_target_features, generate_emoji
+from spotify_auth import TokenInfo, get_spotify_clients
+from spotify_api import spotify_api_client
+from spotipy import Spotify
 
 # Run command: fastapi dev server.py
 HOST = "127.0.0.1"
 PORT = 8000
-uvicorn_server = None  # Reference to uvicorn server instance
-server_thread = None  # Track server thread
+uvicorn_server: uvicorn.Server | None = None  # Reference to uvicorn server instance
+server_thread: threading.Thread | None= None  # Track server thread
 
 app = FastAPI()
 app.add_middleware(
@@ -82,49 +82,82 @@ async def generate_emoji_endpoint(term: Union[str, None] = None):
     
 @app.get("/search-tracks")
 async def search_tracks_endpoint(query: Union[str, None] = None):
+    server_access, _ = await get_spotify_clients()
     if(query is not None):
-        return search_tracks(server_access, query)
+        return await spotify_api_client.search_tracks(server_access, query)
     else:
         return {"error": "No search query specified"}
 
-@app.get("/server_auth_callback")
+@app.get("/server_auth_callback", response_class=HTMLResponse)
 def server_auth_callback_endpoint(code: str, state: str):
-        try:
-            print(f"Received callback with code: {code[:10]}... and state: {state}")
-            handle_auth_callback(code, state)
-            return {"status": "success"}
-        except Exception as e:
-            print(f"Error: {str(e)}")
-            return {"error": str(e)}
+    """
+    Handles the redirect from Spotify after user authorization.
+    """
+    from spotify_auth import _active_authenticator
+    
+    # Check if an authentication process is active
+    if _active_authenticator is None:
+        return """
+        <h1>Error: No active authentication process.</h1>
+        <p>This can happen if the server was restarted or the authentication timed out. Please try again.</p>
+        """
+
+    try:
+        print(f"Received callback with code: {code[:10]}... and state: {state}")
+        
+        # Call the method on the shared instance. This will set the event
+        # that the get_spotify_clients() function is waiting on.
+        _active_authenticator.handle_auth_callback(code, state)
+
+        # Return a success message to the user's browser
+        return """
+        <h1>Authentication Successful!</h1>
+        <p>You can now close this browser tab and return to the application.</p>
+        <script>window.close();</script>
+        """
+    except Exception as e:
+        print(f"Error handling callback: {str(e)}")
+        return f"""
+        <h1>Authentication Failed</h1>
+        <p>An error occurred: {str(e)}</p>
+        <p>Please try the process again.</p>
+        """
 
 class PlaylistRequest (BaseModel):
-    weights: Weights
+    targetFeatures: Any
+    weights: Any
     auth: Optional[TokenInfo] = None
 @app.post("/generate-playlist")
 async def generate_playlist_endpoint(
     fastapi_request: FastAPIRequest,
     request: PlaylistRequest,
-    mood: Union[str, None] = None,
-    activity: Union[str, None] = None,
-    length: Union[str, None] = None,
-    favorite_songs: Union[str, None] = None
+    mood: Optional[str] = None,
+    activity: Optional[str] = None,
+    length: Optional[str] = None,
+    favorite_songs: Optional[str] = None
 ):
+    from generate_playlist import task_generator
+    
+    from spotify_auth import get_client_from_user_token
+
     if(mood is None or activity is None or length is None):
         return {
             "error":"mood, activity, or length cannot be none"
         }
 
     # Split comma-separated favorite_songs into a list
-    favorite_songs_list: None | List[str] = None
+    favorite_songs_list: Optional[List[str]] = None
     if(favorite_songs is not None):
         favorite_songs_list = favorite_songs.split(',')
 
-    spotify_user_access = algorhythms_account
+    sp: Spotify
     if( request.auth is not None):
-        spotify_user_access = get_access_from_user_token(request.auth)
+        sp = get_client_from_user_token(request.auth)
+    else:
+        _, sp = await get_spotify_clients()
 
     return StreamingResponse(
-        task_generator(fastapi_request, spotify_user_access, favorite_songs_list),
+        task_generator(fastapi_request, sp, favorite_songs_list),
         media_type="application/x-ndjson",  # Newline-delimited JSON
         headers={"Cache-Control": "no-cache"}
     )
