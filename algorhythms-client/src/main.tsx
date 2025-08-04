@@ -14,6 +14,7 @@ import GreedyVisualization from "./pages/GreedyVisualization";
 import Layout from "./pages/Layout";
 import FormLayout from "./pages/FormLayout";
 import { PlaylistGenerationProvider } from "./lib/components/PlaylistGenerationContext";
+import ResultsPage from "./pages/ResultsPage";
 
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>
@@ -29,9 +30,13 @@ createRoot(document.getElementById("root")!).render(
 								<Route index element={<Navigate to='/home' />} />
 								<Route path='/login' element={<Login />} />
 								<Route path='/view-playlist' element={<ViewPlaylist />} />
-								<Route path='/loading-playlist' element={<LoadingPlaylist />} />
 								<Route element={<ProtectedRoute />}>
 									<Route path='/create-playlist' element={<CreatePlaylist />} />
+									<Route
+										path='/loading-playlist'
+										element={<LoadingPlaylist />}
+									/>
+									<Route path='/results' element={<ResultsPage />} />
 								</Route>
 							</Route>
 						</Route>
