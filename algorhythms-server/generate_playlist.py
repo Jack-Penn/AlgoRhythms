@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from _types import *
 from spotipy import Spotify
 from track_compiler import TrackListCompiler
-from kd_tree import KDTree
+from kd_tree import KDTree, brute_force_nearest
 from  spotify_api import SpotifyTrack
 from  recco_beats import ReccoTrackFeatures
 from timing import Stopwatch
@@ -73,6 +73,13 @@ async def find_kd_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskResul
     neighbors = kd_tree.nearest_neighbors(target_features.model_dump(), limit=playlist_length)
     return {"kd_tree_playlist_tracks": neighbors}, {"message": f"Found {len(neighbors)} tracks that match your vibe"}
 
+async def brute_force_nearest_neighbors_task(deps: DependencyDict) -> TaskResult:
+    track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
+    target_features = deps['target_features']
+    playlist_length = deps["playlist_length"]
+    neighbors = brute_force_nearest(track_list, target_features, playlist_length)
+    return {"brute_force_playlist_tracks": neighbors}, {}
+
 # async def build_graph(deps: DependencyDict) -> TaskResult:
 #     pass
 
@@ -98,6 +105,14 @@ async def compile_final_results_task(deps: DependencyDict) -> TaskResult:
     """
     final_playlists = {}
     metadata = deps.get("_dependency_metadata", {})
+
+    if "brute_force_playlist_tracks" in deps:
+        duration = metadata.get(TaskID("brute_force_nearest_neighbors"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
+        brute_force_playlist = PlaylistResponse(
+            tracks=deps["brute_force_playlist_tracks"],
+            generation_time=duration
+        )
+        final_playlists["brute_force_playlist"] = brute_force_playlist.model_dump()
 
     # Check for the data we need to build the KD-Tree playlist
     if "kd_tree_playlist_tracks" in deps:
@@ -140,6 +155,13 @@ TASK_DEFINITIONS: List[Task] = [
         dependencies=[]
     ),
     define_task(
+        id="brute_force_nearest_neighbors", 
+        label="Brute Forcing Nearest Neighbors Search", 
+        description="Scoring each song and choosing best scores.",
+        function=brute_force_nearest_neighbors_task, 
+        dependencies=["compile_track_list"]
+    ),
+    define_task(
         id="build_kd_tree", 
         label="Building Search Tree", 
         description="Organizing your music into a high-dimensional k-d tree structure. This allows for hyper-fast searching of songs that match your requested vibe.",
@@ -158,7 +180,7 @@ TASK_DEFINITIONS: List[Task] = [
         label="Assembling Playlist", 
         description="Putting all the pieces together and preparing the final playlist for you to enjoy.",
         function=compile_final_results_task, 
-        dependencies=["build_kd_tree", "find_kd_tree_nearest_neighbors"]
+        dependencies=["brute_force_nearest_neighbors_task", "build_kd_tree", "find_kd_tree_nearest_neighbors"]
     )
 ]
 
