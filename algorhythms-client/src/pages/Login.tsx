@@ -9,7 +9,7 @@ const Login = () => {
 	const navigate = useNavigate();
 
 	return (
-		<div className='w-full max-w-md bg-background rounded-2xl shadow-xl overflow-hidden'>
+		<>
 			{/* Header Section */}
 			<div className='bg-gradient-to-r from-blue-600 to-purple-600 p-8 text-center'>
 				<div className='flex flex-row align-middle justify-center gap-4 pb-5'>
@@ -52,7 +52,7 @@ const Login = () => {
 					</button>
 				</div>
 			</div>
-		</div>
+		</>
 	);
 };
 

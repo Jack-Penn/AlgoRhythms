@@ -9,14 +9,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
 	generatePlaylist,
-	getGeneratedWeights,
+	getGeneratedTargetFeatures,
 	getGenerateEmoji,
 	searchTracks,
 } from "../lib/api";
 import useDebounce from "../lib/hooks/useDebounce";
 import type { TrackObject } from "../lib/spotify/types";
 import { useAuth } from "../auth/AuthProvider";
-import type { Weights } from "../lib/types";
+import type { Weights, Features } from "../lib/types";
+import { lerpTailwindColor } from "../lib/color";
+import Header from "../lib/components/Header";
 
 export default function CreatePlaylist() {
 	const { user, spotifyAuth } = useAuth();
@@ -25,33 +27,54 @@ export default function CreatePlaylist() {
 	const [mood, setMood] = useState("");
 	const [activity, setActivity] = useState("");
 	const [playlistLength, setPlaylistLength] = useState(10);
-
 	const [selectedTracks, setSelectedTracks] = useState<TrackObject[]>([]);
 
-	// Weights state
-	const [showWeights, setShowWeights] = useState(false);
-	const [acousticness, setAcousticness] = useState(50);
-	const [danceability, setDanceability] = useState(50);
-	const [energy, setEnergy] = useState(50);
-	const [instrumentalness, setInstrumentalness] = useState(50);
-	const [liveness, setLiveness] = useState(50);
-	const [valence, setValence] = useState(50);
-	const [speechiness, setSpeechiness] = useState(50);
-	const [tempo, setTempo] = useState(125);
-	const [loudness, setLoudness] = useState(-30);
-	const [hasManualAdjustment, setHasManualAdjustment] = useState(false);
+	const [activeTab, setActiveTab] = useState("features");
 
-	// Debounce mood and activity inputs
+	// Feature states
+	const [showAdvanced, setShowAdvanced] = useState(false);
+	const [hasManualAdjustment, setHasManualAdjustment] = useState(false);
+	const [isTargetFeaturesGenerated, setisTargetFeaturesGenerated] =
+		useState(false);
+
+	// Initialize weights at 0.5 for all features
+	const [weights, setWeights] = useState<Weights>({
+		acousticness_weight: 0.5,
+		danceability_weight: 0.5,
+		energy_weight: 0.5,
+		instrumentalness_weight: 0.5,
+		liveness_weight: 0.5,
+		valence_weight: 0.5,
+		speechiness_weight: 0.5,
+		tempo_weight: 0.5,
+		loudness_weight: 0.5,
+		personalization_weight: 0.5,
+		cohesion_weight: 0.5,
+	});
+
+	// Initialize target features with default values
+	const [targetFeatures, settargetFeatures] = useState<Features>({
+		acousticness: 0.5,
+		danceability: 0.5,
+		energy: 0.5,
+		instrumentalness: 0.5,
+		liveness: 0.5,
+		valence: 0.5,
+		speechiness: 0.5,
+		tempo: 125,
+		loudness: -30,
+	});
+
+	// Debounce inputs
 	const debouncedMood = useDebounce(mood, 1000).trim();
 	const debouncedActivity = useDebounce(activity, 1000).trim();
 
-	// React Query for fetching weights
-	const generatedWeights = useQuery({
-		queryKey: ["generatedWeights", debouncedMood, debouncedActivity],
+	// Fetch generated target features from Gemini
+	const generatedTargetFeatures = useQuery({
+		queryKey: ["generatedTargetFeatures", debouncedMood, debouncedActivity],
 		queryFn: () => {
 			if (!debouncedMood || !debouncedActivity) return null;
-			console.log("Fetching Weights");
-			return getGeneratedWeights({
+			return getGeneratedTargetFeatures({
 				mood: debouncedMood,
 				activity: debouncedActivity,
 			});
@@ -59,6 +82,14 @@ export default function CreatePlaylist() {
 		enabled: !!debouncedMood && !!debouncedActivity,
 	});
 
+	useEffect(() => {
+		if (generatedTargetFeatures.data) {
+			settargetFeatures(generatedTargetFeatures.data);
+			setisTargetFeaturesGenerated(true);
+		}
+	}, [generatedTargetFeatures.data]);
+
+	// Emoji queries
 	const moodEmoji = useQuery({
 		queryKey: ["moodEmoji", debouncedMood],
 		queryFn: () => {
@@ -67,7 +98,6 @@ export default function CreatePlaylist() {
 		},
 		enabled: !!debouncedMood,
 	});
-
 	const activityEmoji = useQuery({
 		queryKey: ["activityEmoji", debouncedActivity],
 		queryFn: () => {
@@ -77,85 +107,46 @@ export default function CreatePlaylist() {
 		enabled: !!debouncedActivity,
 	});
 
-	// Update weights when new data comes in
-	useEffect(() => {
-		if (generatedWeights.data && !hasManualAdjustment) {
-			console.log("Weights", generatedWeights.data);
-			setAcousticness(generatedWeights.data.acousticness * 100);
-			setDanceability(generatedWeights.data.danceability * 100);
-			setEnergy(generatedWeights.data.energy * 100);
-			setInstrumentalness(generatedWeights.data.instrumentalness * 100);
-			setLiveness(generatedWeights.data.liveness * 100);
-			setValence(generatedWeights.data.valence * 100);
-			setSpeechiness(generatedWeights.data.speechiness * 100);
-			setTempo(generatedWeights.data.tempo);
-			setLoudness(generatedWeights.data.loudness);
-		}
-	}, [generatedWeights.data]);
-
 	// Reset manual adjustment flag when inputs change
 	useEffect(() => {
 		setHasManualAdjustment(false);
 	}, [mood, activity]);
 
-	// Handle slider changes
-	const handleSliderChange = (
-		setter: React.Dispatch<React.SetStateAction<number>>,
-	) => {
-		return (e: React.ChangeEvent<HTMLInputElement>) => {
-			const value = parseInt(e.target.value);
-			setter(value);
+	// Handle target features changes
+	const handleTargetFeatureChange =
+		(key: keyof Features) => (e: React.ChangeEvent<HTMLInputElement>) => {
+			const value = parseFloat(e.target.value);
+			settargetFeatures((prev) => ({ ...prev, [key]: value }));
 			setHasManualAdjustment(true);
 		};
-	};
+
+	// Handle weight changes
+	const handleWeightChange =
+		(key: keyof Weights) => (e: React.ChangeEvent<HTMLInputElement>) => {
+			const value = parseFloat(e.target.value);
+			setWeights((prev) => ({ ...prev, [key]: value }));
+			setHasManualAdjustment(true);
+		};
 
 	async function submitForm() {
-		const scaledWeights: Weights = {
-			acousticness: acousticness / 100,
-			danceability: danceability / 100,
-			energy: energy / 100,
-			instrumentalness: instrumentalness / 100,
-			liveness: liveness / 100,
-			valence: valence / 100,
-			speechiness: speechiness / 100,
-			tempo,
-			loudness,
-		};
-		const data = await generatePlaylist(
+		// Combine weights and target features for submission
+		const res = await generatePlaylist(
 			mood,
 			activity,
 			playlistLength,
 			selectedTracks.length ? selectedTracks.map(({ uri }) => uri) : null,
-			scaledWeights,
+			targetFeatures,
+			weights,
 			spotifyAuth,
 		);
-
-		console.log(data);
+		console.log(res);
 	}
 
-	return (
-		<div className='w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden'>
-			{/* Header Section */}
-			<div className='bg-gradient-to-r from-blue-600 to-purple-600 p-8 text-center'>
-				<div className='flex flex-row align-middle justify-center gap-4'>
-					<div className='w-16 h-16 my-auto rounded-full border-dashed border border-white '>
-						<div className='w-full h-full flex items-center justify-center'>
-							<svg
-								xmlns='http://www.w3.org/2000/svg'
-								className='h-10 w-10 text-white'
-								viewBox='0 0 20 20'
-								fill='currentColor'
-							>
-								<path d='M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z' />
-							</svg>
-						</div>
-					</div>
+	const Divider = () => <div className='border-t border-gray-200 my-6' />;
 
-					<h1 className='text-2xl font-bold text-white my-auto'>
-						Create Playlist
-					</h1>
-				</div>
-			</div>
+	return (
+		<>
+			<Header title='Create Playlist' />
 
 			{/* Form Section */}
 			<div className='p-8'>
@@ -212,13 +203,13 @@ export default function CreatePlaylist() {
 								className='text-xl font-bold px-3 py-1 rounded-full style'
 								style={{
 									color: lerpTailwindColor(
-										"--color-blue-600",
-										"--color-purple-600",
+										"blue-600",
+										"purple-600",
 										(playlistLength - 5) / 30,
 									),
 									backgroundColor: lerpTailwindColor(
-										"--color-blue-100",
-										"--color-purple-100",
+										"blue-100",
+										"purple-100",
 										(playlistLength - 5) / 30,
 									),
 								}}
@@ -235,8 +226,8 @@ export default function CreatePlaylist() {
 							className='w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer'
 							style={{
 								accentColor: lerpTailwindColor(
-									"--color-blue-600",
-									"--color-purple-600",
+									"blue-600",
+									"purple-600",
 									(playlistLength - 5) / 30,
 								),
 							}}
@@ -247,9 +238,9 @@ export default function CreatePlaylist() {
 						</div>
 					</div>
 
-					{/* Divider */}
-					<div className='border-t border-gray-200 my-6' />
+					<Divider />
 
+					{/* Favorite Songs Section */}
 					{user?.is_guest && (
 						<>
 							<SongsSelector
@@ -257,114 +248,196 @@ export default function CreatePlaylist() {
 								setState={setSelectedTracks}
 							/>
 
-							{/* Divider */}
-							<div className='border-t border-gray-200 my-6' />
+							<Divider />
 						</>
 					)}
 
-					{/* Weights Section */}
-					<div>
-						<div className='flex flex-row w-full justify-between items-center mb-4'>
-							<h3 className='text-xl font-bold text-gray-800'>
-								Customize Weights
-							</h3>
-
-							{generatedWeights.isFetching && (
-								<div className=' animate-pulse flex flex-row gap-1'>
-									<span className='bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text text-sm'>
-										Generating weights
-									</span>
-									<SparklesIcon className='size-4 text-purple-500' />
-								</div>
+					{/* Advanced Settings Toggle */}
+					<div className='flex justify-between items-center'>
+						<h3 className='text-xl font-bold text-gray-800'>
+							Advanced Settings
+						</h3>
+						<button
+							onClick={() => setShowAdvanced(!showAdvanced)}
+							className='flex items-center gap-1 text-sm text-blue-600 cursor-pointer'
+						>
+							{showAdvanced ? "Hide" : "Show"}
+							{showAdvanced ? (
+								<EyeIcon className='w-4 h-4' />
+							) : (
+								<EyeSlashIcon className='w-4 h-4' />
 							)}
-
-							<button
-								className=' cursor-pointer size-6.5'
-								onClick={() => setShowWeights((showWeights) => !showWeights)}
-							>
-								{showWeights ? <EyeIcon /> : <EyeSlashIcon />}
-							</button>
-						</div>
-
-						{showWeights && (
-							<>
-								{/* Mood & Energy Section */}
-								<h4 className='text-gray-700 font-semibold mt-6 mb-3'>
-									Mood & Energy ⚡
-								</h4>
-								<WeightSlider
-									label='Energy'
-									description='Intensity and liveliness (0=calm, 100=energetic)'
-									value={energy}
-									onChange={handleSliderChange(setEnergy)}
-								/>
-								<WeightSlider
-									label='Valence'
-									description='Musical positiveness (0=sad, 100=happy)'
-									value={valence}
-									onChange={handleSliderChange(setValence)}
-								/>
-								<WeightSlider
-									label='Danceability'
-									description='Suitability for dancing (0=not danceable, 100=highly danceable)'
-									value={danceability}
-									onChange={handleSliderChange(setDanceability)}
-								/>
-
-								{/* Sound Characteristics Section */}
-								<h4 className='text-gray-700 font-semibold mt-8 mb-3'>
-									Sound Characteristics 🎵
-								</h4>
-								<WeightSlider
-									label='Acousticness'
-									description='Natural vs electronic sounds (0=electronic, 100=acoustic)'
-									value={acousticness}
-									onChange={handleSliderChange(setAcousticness)}
-								/>
-								<WeightSlider
-									label='Instrumentalness'
-									description='Presence of vocals (0=vocal, 100=instrumental)'
-									value={instrumentalness}
-									onChange={handleSliderChange(setInstrumentalness)}
-								/>
-								<WeightSlider
-									label='Speechiness'
-									description='Spoken words content (0=music, 100=speech)'
-									value={speechiness}
-									onChange={handleSliderChange(setSpeechiness)}
-								/>
-								<WeightSlider
-									label='Liveness'
-									description='Audience presence (0=studio, 100=live)'
-									value={liveness}
-									onChange={handleSliderChange(setLiveness)}
-								/>
-
-								{/* Technical Properties Section */}
-								<h4 className='text-gray-700 font-semibold mt-8 mb-3'>
-									Technical Properties ⚙️
-								</h4>
-								<WeightSlider
-									label='Tempo'
-									description='Speed of the track (BPM)'
-									value={tempo}
-									onChange={handleSliderChange(setTempo)}
-									min={0}
-									max={250}
-									units=' BPM'
-								/>
-								<WeightSlider
-									label='Loudness'
-									description='Overall volume (dB)'
-									value={loudness}
-									onChange={handleSliderChange(setLoudness)}
-									min={-60}
-									max={0}
-									units=' db'
-								/>
-							</>
-						)}
+						</button>
 					</div>
+
+					{showAdvanced && (
+						<div className='bg-white rounded-lg border border-gray-200 overflow-hidden'>
+							{/* Tab Navigation */}
+							<div className='flex border-b border-gray-200'>
+								<button
+									className={`flex-1 py-3 font-medium text-center cursor-pointer ${
+										activeTab === "features"
+											? "text-blue-600 border-b-2 border-blue-600"
+											: "text-gray-500"
+									}`}
+									onClick={() => setActiveTab("features")}
+								>
+									Target Features
+								</button>
+								<button
+									className={`flex-1 py-3 font-medium text-center cursor-pointer ${
+										activeTab === "weights"
+											? "text-blue-600 border-b-2 border-blue-600"
+											: "text-gray-500"
+									}`}
+									onClick={() => setActiveTab("weights")}
+								>
+									Feature Weights
+								</button>
+							</div>
+
+							{/* Tab Content */}
+							<div className='p-4'>
+								{activeTab === "features" && (
+									<div className='space-y-6'>
+										<div className='text-sm text-gray-500 mb-4 flex items-center'>
+											<SparklesIcon className='w-4 h-4 mr-1 text-purple-500' />
+											{generatedTargetFeatures.isFetching
+												? "Generating recommended features..."
+												: "Adjust the ideal song characteristics"}
+										</div>
+
+										<FeatureGroup
+											title='Mood & Energy ⚡'
+											features={[
+												{
+													key: "valence",
+													label: "Valence",
+													description: "Musical positiveness (0=sad, 1=happy)",
+													min: 0,
+													max: 1,
+													step: 0.01,
+												},
+												{
+													key: "energy",
+													label: "Energy",
+													description:
+														"Intensity and liveliness (0=calm, 1=energetic)",
+													min: 0,
+													max: 1,
+													step: 0.01,
+												},
+												{
+													key: "danceability",
+													label: "Danceability",
+													description:
+														"Suitability for dancing (0=not danceable, 1=highly danceable)",
+													min: 0,
+													max: 1,
+													step: 0.01,
+												},
+											]}
+											targetFeatures={targetFeatures}
+											onChange={handleTargetFeatureChange}
+											disabled={!isTargetFeaturesGenerated}
+										/>
+
+										<FeatureGroup
+											title='Sound Characteristics 🎵'
+											features={[
+												{
+													key: "acousticness",
+													label: "Acousticness",
+													description:
+														"Natural vs electronic sounds (0=electronic, 1=acoustic)",
+													min: 0,
+													max: 1,
+													step: 0.01,
+												},
+												{
+													key: "instrumentalness",
+													label: "Instrumentalness",
+													description:
+														"Presence of vocals (0=vocal, 1=instrumental)",
+													min: 0,
+													max: 1,
+													step: 0.01,
+												},
+											]}
+											targetFeatures={targetFeatures}
+											onChange={handleTargetFeatureChange}
+											disabled={!isTargetFeaturesGenerated}
+										/>
+
+										<FeatureGroup
+											title='Technical Properties ⚙️'
+											features={[
+												{
+													key: "tempo",
+													label: "Tempo",
+													description: "Speed of the track (BPM)",
+													min: 0,
+													max: 250,
+													step: 1,
+													units: " BPM",
+												},
+												{
+													key: "loudness",
+													label: "Loudness",
+													description: "Overall volume (dB)",
+													min: -60,
+													max: 0,
+													step: 0.1,
+													units: " dB",
+												},
+											]}
+											targetFeatures={targetFeatures}
+											onChange={handleTargetFeatureChange}
+											disabled={!isTargetFeaturesGenerated}
+										/>
+									</div>
+								)}
+
+								{activeTab === "weights" && (
+									<div className='space-y-6'>
+										<div className='text-sm text-gray-500 mb-4'>
+											🎚️Adjust how much each feature influences recommendations
+										</div>
+
+										<WeightGroup
+											title='Audio Feature Importance'
+											weights={[
+												{ key: "valence_weight", label: "Valence" },
+												{ key: "energy_weight", label: "Energy" },
+												{ key: "danceability_weight", label: "Danceability" },
+												{ key: "acousticness_weight", label: "Acousticness" },
+												{
+													key: "instrumentalness_weight",
+													label: "Instrumentalness",
+												},
+												{ key: "tempo_weight", label: "Tempo" },
+											]}
+											currentWeights={weights}
+											onChange={handleWeightChange}
+										/>
+
+										<WeightGroup
+											title='Algorithm Parameters'
+											weights={[
+												{
+													key: "personalization_weight",
+													label: "Personalization",
+												},
+												{ key: "cohesion_weight", label: "Cohesion" },
+											]}
+											currentWeights={weights}
+											onChange={handleWeightChange}
+										/>
+									</div>
+								)}
+							</div>
+						</div>
+					)}
 
 					{/* Generate Button */}
 					<button
@@ -375,79 +448,217 @@ export default function CreatePlaylist() {
 					</button>
 				</div>
 			</div>
-		</div>
+		</>
 	);
 }
 
-type WeightSliderProps = {
+// New FeatureGroup Component
+type FeatureGroupProps = {
+	title: string;
+	features: Array<{
+		key: keyof Features;
+		label: string;
+		description: string;
+		min: number;
+		max: number;
+		step: number;
+		units?: string;
+	}>;
+	targetFeatures: Features;
+	onChange: (
+		key: keyof Features,
+	) => (e: React.ChangeEvent<HTMLInputElement>) => void;
+	disabled?: boolean;
+};
+
+const FeatureGroup: React.FC<FeatureGroupProps> = ({
+	title,
+	features,
+	targetFeatures,
+	onChange,
+	disabled = false,
+}) => {
+	return (
+		<div className='feature-group'>
+			<h4 className='text-gray-700 font-semibold mb-3'>{title}</h4>
+			<div className='space-y-4'>
+				{features.map((feature) => (
+					<FeatureSlider
+						key={feature.key}
+						label={feature.label}
+						description={feature.description}
+						value={targetFeatures[feature.key]}
+						onChange={onChange(feature.key)}
+						min={feature.min}
+						max={feature.max}
+						step={feature.step}
+						units={feature.units || ""}
+						disabled={disabled}
+					/>
+				))}
+			</div>
+		</div>
+	);
+};
+
+// New WeightGroup Component
+type WeightGroupProps = {
+	title: string;
+	weights: Array<{
+		key: keyof Weights;
+		label: string;
+	}>;
+	currentWeights: Weights;
+	onChange: (
+		key: keyof Weights,
+	) => (e: React.ChangeEvent<HTMLInputElement>) => void;
+};
+
+const WeightGroup: React.FC<WeightGroupProps> = ({
+	title,
+	weights,
+	currentWeights,
+	onChange,
+}) => {
+	return (
+		<div className='weight-group'>
+			<h4 className='text-gray-700 font-semibold mb-3'>{title}</h4>
+			<div className='space-y-4'>
+				{weights.map((weight) => (
+					<WeightSlider
+						key={weight.key}
+						label={weight.label}
+						value={currentWeights[weight.key]}
+						onChange={onChange(weight.key)}
+					/>
+				))}
+			</div>
+		</div>
+	);
+};
+
+// Feature Slider Component (for Target Features)
+type FeatureSliderProps = {
 	label: string;
 	description: string;
 	value: number;
 	onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+	min: number;
+	max: number;
+	step: number;
 	units?: string;
-	min?: number;
-	max?: number;
+	disabled?: boolean;
 };
-const WeightSlider: React.FC<WeightSliderProps> = ({
+
+const FeatureSlider: React.FC<FeatureSliderProps> = ({
 	label,
 	description,
 	value,
 	onChange,
-	units = "%",
-	min = 0,
-	max = 100,
+	min,
+	max,
+	step,
+	units = "",
+	disabled = false,
 }) => {
-	const lerpedGradientColor = lerpTailwindColor(
-		"--color-blue-600",
-		"--color-purple-600",
-		(value - min) / (max - min),
-	);
+	const progress = ((value - min) / (max - min)) * 100;
 
 	return (
 		<div className='mb-5'>
-			<div className='flex justify-between mb-2'>
+			<div className='flex justify-between items-center mb-2'>
 				<div className='flex items-center'>
 					<label className='block text-gray-700 font-medium'>{label}</label>
 					<div className='group relative ml-1'>
-						<InformationCircleIcon className=' size-3.5 text-gray-400 cursor-help' />
+						<InformationCircleIcon className='size-4 text-gray-400 cursor-help' />
 						<div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-black text-white text-xs rounded p-2 w-48 shadow-lg z-10'>
 							{description}
 						</div>
 					</div>
 				</div>
-				<span
-					className='text-sm font-medium'
-					style={{ color: lerpedGradientColor }}
-				>
-					{value}
+				<span className='text-sm font-medium text-blue-600'>
+					{value.toFixed(units ? 0 : 2)}
 					{units}
 				</span>
 			</div>
-			<input
-				type='range'
-				min={min}
-				max={max}
-				value={value}
-				onChange={onChange}
-				className='w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer'
-				style={{
-					accentColor: lerpedGradientColor,
-				}}
-			/>
+
+			<div className='relative'>
+				<input
+					type='range'
+					min={min}
+					max={max}
+					step={step}
+					value={value}
+					onChange={onChange}
+					className={`w-full h-2 bg-blue-100 rounded-lg appearance-none ${
+						disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+					}`}
+					style={{
+						background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progress}%, #e5e7eb ${progress}%, #e5e7eb 100%)`,
+					}}
+					disabled={disabled}
+				/>
+			</div>
+
+			<div className='flex justify-between text-xs text-gray-500 mt-1'>
+				<span>
+					{min}
+					{units}
+				</span>
+				<span>
+					{max}
+					{units}
+				</span>
+			</div>
 		</div>
 	);
 };
 
-function lerpTailwindColor(
-	color1: string,
-	color2: string,
-	value: number,
-	colorSpace: string = "oklch",
-) {
-	return `color-mix(in ${colorSpace}, var(${color1}), var(${color2}) ${
-		value * 100
-	}%)`;
-}
+// Weight Slider Component
+type WeightSliderProps = {
+	label: string;
+	value: number;
+	onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+};
+
+const WeightSlider: React.FC<WeightSliderProps> = ({
+	label,
+	value,
+	onChange,
+}) => {
+	const percentage = value * 100;
+	const lerpedColor = lerpTailwindColor("blue-600", "purple-600", value);
+
+	return (
+		<div className='mb-5'>
+			<div className='flex justify-between items-center mb-2'>
+				<label className='block text-gray-700 font-medium'>{label}</label>
+				<span className='text-sm font-medium' style={{ color: lerpedColor }}>
+					{percentage.toFixed(0)}%
+				</span>
+			</div>
+
+			<div className='relative'>
+				<input
+					type='range'
+					min='0'
+					max='1'
+					step='0.01'
+					value={value}
+					onChange={onChange}
+					className='w-full h-2 bg-purple-100 rounded-lg appearance-none cursor-pointer'
+					style={{
+						background: `linear-gradient(to right, var(--color-blue-400) 0%, ${lerpTailwindColor(
+							"blue-400",
+							"purple-500",
+							value,
+						)} ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`,
+						accentColor: lerpedColor,
+					}}
+				/>
+			</div>
+		</div>
+	);
+};
 
 type SongsSelectorProps = {
 	state: TrackObject[];
@@ -586,13 +797,13 @@ const SongsSelector: React.FC<SongsSelectorProps> = ({ state, setState }) => {
 						className='text-sm font-medium bg-blue-100 text-blue-800 rounded-full px-2.5 py-0.5'
 						style={{
 							backgroundColor: lerpTailwindColor(
-								"--color-blue-100",
-								"--color-purple-100",
+								"blue-100",
+								"purple-100",
 								state.length / 5,
 							),
 							color: lerpTailwindColor(
-								"--color-blue-800",
-								"--color-purple-800",
+								"blue-600",
+								"purple-600",
 								state.length / 5,
 							),
 						}}
