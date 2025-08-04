@@ -62,14 +62,14 @@ async def build_kd_tree_task(deps: DependencyDict) -> TaskResult:
     track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
     track_data_points = [(track, features.model_dump()) for track, features in track_list]
     kd_tree = KDTree(track_data_points)
-    return {"kd_tree": kd_tree}, {}
+    return {"kd_tree": kd_tree}, {"message": "Data structure built for efficient searching"}
 
 async def find_kd_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskResult:
     kd_tree: KDTree = deps["kd_tree"]
     target_features = deps['target_features']
     playlist_length = deps["playlist_length"]
     neighbors = kd_tree.nearest_neighbors(target_features.model_dump(), limit=playlist_length)
-    return {"kd_tree_playlist_tracks": neighbors}, {}
+    return {"kd_tree_playlist_tracks": neighbors}, {"message": f"Found {len(neighbors)} tracks that match your vibe"}
 
 # async def build_graph(deps: DependencyDict) -> TaskResult:
 #     pass
@@ -133,30 +133,30 @@ TASK_DEFINITIONS: List[Task] = [
     define_task(
         id="compile_track_list", 
         label="Compiling Tracks", 
-        description="...",
+        description="Gathering and analyzing tracks from your library and liked songs to create a pool of candidates for your playlist.",
         function=compile_track_list_task, 
         dependencies=[]
     ),
     define_task(
         id="build_kd_tree", 
-        label="Building KD-Tree", 
-        description="...",
+        label="Building Search Tree", 
+        description="Organizing your music into a high-dimensional k-d tree structure. This allows for hyper-fast searching of songs that match your requested vibe.",
         function=build_kd_tree_task, 
         dependencies=["compile_track_list"]
     ),
     define_task(
         id="find_kd_tree_nearest_neighbors", 
-        label="Searching Nearest Neighbors in KD-Tree", 
-        description="...",
+        label="Finding Vibe Matches", 
+        description="Searching the k-d tree for the songs with audio features closest to the ones you've requested. This is where the magic happens.",
         function=find_kd_tree_nearest_neighbors_task, 
         dependencies=["build_kd_tree"]
     ),
     define_task(
         id="compile_final_results", 
-        label="Compiling Final Results", 
-        description="...",
+        label="Assembling Playlist", 
+        description="Putting all the pieces together and preparing the final playlist for you to enjoy.",
         function=compile_final_results_task, 
-        dependencies=["find_kd_tree_nearest_neighbors"]
+        dependencies=["build_kd_tree", "find_kd_tree_nearest_neighbors"]
     )
 ]
 
