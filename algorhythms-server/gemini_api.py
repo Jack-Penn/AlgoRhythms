@@ -247,9 +247,6 @@ async def generate_playlist_search_query(target_features: Optional[ReccoTrackFea
             client.models.generate_content,
             model="gemini-2.5-flash-lite-preview-06-17",
             contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-            }
         )
 
         if response.text:
@@ -271,7 +268,7 @@ async def generate_playlist_name(mood: str, activity: str, tracks: List[SpotifyT
         return f"track.name by {", ".join(map(lambda artist: artist.name, track.artists))}"
 
     prompt = f'''
-        Genearate a fun name for a music playlist. Please include at least one or two emojis
+        Genearate a fun name for a music playlist. Please include at least one or two emojis. Respond with just the text for the playlist name
         
         Here are some details about the playlist
             mood: {mood}
@@ -283,9 +280,6 @@ async def generate_playlist_name(mood: str, activity: str, tracks: List[SpotifyT
         client.models.generate_content,
         model="gemini-2.5-flash-lite-preview-06-17",
         contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-        }
     )
 
     if response.text:
@@ -443,6 +437,10 @@ async def test_image():
             print(f"Could not automatically display the image: {e}")
             print(f"Please open '{file_name}' manually to view it.")
 
+async def test_generate_playlist_name():
+    playlist_name = await generate_playlist_name(mood="Happy", activity="Coding", tracks=[])
+    print(f"Test Playlist Name: {playlist_name}")
+
 # Run the async main function
 if __name__ == "__main__":
-    asyncio.run(test_image())
+    asyncio.run(test_generate_playlist_name())
