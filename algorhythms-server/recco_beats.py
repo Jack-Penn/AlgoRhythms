@@ -54,7 +54,8 @@ class ReccoBeatsAPIError(Exception):
                 self.error_message = error_message
                 self.response_data = response_data
                 super().__init__(f"API Error {status_code}: {error_message}")
-                
+
+# --- Client Functions ---
 class ReccoBeatsAPIClient:
     """Client for interacting with ReccoBeats API"""
     def __init__(self, concurrent_request_limit: int = 10):
@@ -183,86 +184,11 @@ class ReccoBeatsAPIClient:
                 pass
         return track_features_map
 
-    async def get_spotify_track_features(
-        self, 
-        spotify_ids: List[SpotifyTrackID]
-    ) -> Dict[SpotifyTrackID, Optional[ReccoTrackFeatures]]:
-        """
-        Fetches audio features for Spotify IDs using a concurrent
-        producer-consumer pattern for maximum efficiency.
-        """
-        BATCH_SIZE = 40
-        details_queue = asyncio.Queue()
-        track_features_map: Dict[SpotifyTrackID, Optional[ReccoTrackFeatures]] = {sid: None for sid in spotify_ids}
-        features_map_lock = asyncio.Lock()
-
-        # --- Consumer ---
-        async def feature_consumer():
-            """Consumes track details from the queue and fetches features in batches."""
-            details_buffer: List[tuple[SpotifyTrackID, ReccoTrackDetails]] = []
-            while True:
-                detail_item = await details_queue.get()
-
-                # A 'None' item is the signal that all producers have finished.
-                if detail_item is None:
-                    if details_buffer:
-                        # last batch
-                        await process_feature_batch(details_buffer)
-                    details_queue.task_done()
-                    break  # Exit the consumer loop
-
-                details_buffer.append(detail_item)
-                
-                # Once the buffer is full, process it.
-                if len(details_buffer) >= BATCH_SIZE:
-                    await process_feature_batch(details_buffer)
-                    details_buffer.clear() # Clear the buffer after processing
-                
-                details_queue.task_done()
-
-        # Helper to process a batch of features and update the final map.
-        async def process_feature_batch(batch: List[tuple[SpotifyTrackID, ReccoTrackDetails]]):
-            if not batch:
-                return
-                
-            recco_ids = [details.id for _, details in batch]
-            recco_features = await self.get_recco_track_features_batch(recco_ids)
-            
-            async with features_map_lock:
-                for spotify_id, details in batch:
-                    # Use .get() for safety in case a feature isn't returned for a Recco ID.
-                    track_features_map[spotify_id] = recco_features.get(details.id)
-
-        # --- Producers ---
-        async def details_producer(batch: List[SpotifyTrackID]):
-            """Fetch track details and put them onto the queue for the consumer."""
-            track_details = await self.get_spotify_track_details_batch(batch)
-            for spotify_id, details in track_details.items():
-                if details:
-                    await details_queue.put((spotify_id, details))
-
-        # --- Main Execution ---
-        # 1. Start the single consumer task in the background.
-        consumer_task = asyncio.create_task(feature_consumer())
-
-        # 2. Create and run all producer tasks concurrently.
-        spotify_id_batches = [spotify_ids[i:i + BATCH_SIZE] for i in range(0, len(spotify_ids), BATCH_SIZE)]
-        producer_tasks = [details_producer(batch) for batch in spotify_id_batches]
-        await asyncio.gather(*producer_tasks)
-
-        # 3. All producers are done; send the signal to the consumer to finish up.
-        await details_queue.put(None)
-        
-        # 4. Wait for the consumer to process all items and terminate.
-        await consumer_task
-        
-        return track_features_map
-    
     async def get_spotify_track_recommendations(
         self,
         seed_ids: List[SpotifyTrackID],
         target_features: Optional[ReccoTrackFeatures],
-        limit: int
+        limit: int = 40
     ) -> List[ReccoTrackDetails]:
         """Get track recommendations based on seed tracks and target features"""
         params = {
@@ -272,13 +198,16 @@ class ReccoBeatsAPIClient:
         }
         response = await self._make_request("/track/recommendation", params)
         
-        recommendations = []
+        recommendations: List[ReccoTrackDetails] = []
         for item in response.get("content", []):
             try:
                 recommendations.append(ReccoTrackDetails(**item))
             except Exception as e:
                 print(f"Error parsing recommendation: {e}")
         return recommendations
+
+
+recco_api_client = ReccoBeatsAPIClient() # exported shared client instance
 
 # --- Test Functions ---
 
@@ -311,20 +240,6 @@ async def test_get_recco_track_features_batch(client: ReccoBeatsAPIClient):
         else:
             print("  Features not found.")
     print("------------------------------------------------\n")
-
-async def test_get_spotify_track_features(client: ReccoBeatsAPIClient):
-    print("--- Testing get_spotify_track_features ---")
-    spotify_ids_to_test = [SpotifyTrackID(s_id) for s_id in ["21B4gaTWnTkuSh77iWEXdS", "102YUQbYmwdBXS7jwamI90", "1kuGVB7EU95pJObxwvfwKS"]]
-    features_map = await client.get_spotify_track_features(spotify_ids_to_test)
-    
-    print("\n--- Results for get_spotify_track_features ---")
-    for track_id, features in features_map.items():
-        print(f"\n> Track ID: {track_id}")
-        if features:
-            print(features.model_dump_json(indent=2))
-        else:
-            print("  Features not found.")
-    print("---------------------------------------------\n")
 
 async def test_get_spotify_track_recommendations(client: ReccoBeatsAPIClient):
     print("--- Testing get_spotify_track_recommendations ---")
