@@ -1,17 +1,12 @@
+import asyncio
 import server
-from  spotify_auth import initialize_algorithms_account
-from spotify_auth import algorhythms_account
+from  spotify_auth import get_spotify_clients
 import time
-from spotify_api import *
 
 def main():
     try:
+        asyncio.run(get_spotify_clients())
         server.start_server()
-
-        initialize_algorithms_account()
-
-        # Make API calls here
-        print(algorhythms_account.current_user())
 
         # Keep the main thread alive
         while True:
