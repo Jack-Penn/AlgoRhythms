@@ -162,10 +162,10 @@ class TrackListCompiler:
         
         # Add initial producers. They will dynamically add more producers to other pipelines.
         initial_producers = [
-            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=100, time_range="long_term"), rec_batches=5),
-            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=200, time_range="medium_term"), rec_batches=10),
-            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=200, time_range="short_term"), rec_batches=10),
-            self._create_primary_track_producer(self.spotify_client.get_saved_tracks(self.sp, limit=100), rec_batches=10),
+            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=100, time_range="long_term"), rec_batches=2),
+            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=200, time_range="medium_term"), rec_batches=2),
+            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=200, time_range="short_term"), rec_batches=2),
+            self._create_primary_track_producer(self.spotify_client.get_saved_tracks(self.sp, limit=100), rec_batches=2),
             self._create_playlists_tracks_producer(limit=3, track_limit=30)
         ]
         await self.primary_tracks_pc.add_producers(initial_producers)
