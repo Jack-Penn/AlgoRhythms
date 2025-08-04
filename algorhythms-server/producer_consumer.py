@@ -47,14 +47,21 @@ class ProducerConsumer(Generic[ItemType]):
                 
                 self.shared_queue.task_done()
             except Exception as e:
-                print(f"Error in consumer {self.consumer_callback.__name__}: {e}")
-                # Depending on desired behavior, you might want to break or continue
+                import traceback
+                print(f"Error in consumer {self.consumer_callback.__name__} while processing batch. Error: {e}")
+                traceback.print_exc()
+                # Breaking here stops the consumer on any error.
                 break
         
         # After the loop breaks, process any remaining items in the buffer.
         if items_buffer:
             print(f"Consumer for {self.consumer_callback.__name__} processing final batch...")
-            await self.consumer_callback(items_buffer)
+            try:
+                await self.consumer_callback(items_buffer)
+            except Exception as e:
+                import traceback
+                print(f"Error in consumer {self.consumer_callback.__name__} during final batch. Error: {e}")
+                traceback.print_exc()
     
     async def start(self):
         """Starts the consumer task, making the service ready to accept items."""
