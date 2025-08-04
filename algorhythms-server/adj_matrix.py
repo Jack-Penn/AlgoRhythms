@@ -13,12 +13,11 @@ def euclidean_distance(vec1: list[float], vec2: list[float]) -> float:
 
 
 def build_adjacency_matrix(master_list: List[Tuple[dict, Dict[str, float]]],
-                           feature_keys: List[str]) -> List[List[float]]:
+    feature_keys: List[str]) -> List[List[float]]:
     n = len(master_list)
     matrix = [[0.0] * n for _ in range(n)]
 
-    vectors = [song_to_vector(trackfeatures, feature_keys)
-               for _, trackfeatures in master_list]
+    vectors = [song_to_vector(trackfeatures, feature_keys) for _, trackfeatures in master_list]
 
     for i in range(n):
         for j in range(i + 1, n):  # matrix is symmetric
@@ -29,8 +28,10 @@ def build_adjacency_matrix(master_list: List[Tuple[dict, Dict[str, float]]],
     return matrix
 
 #use to normalize features
-def normalize_features(master_list: List[Tuple[dict, Dict[str, float]]],
-                       feature_keys: List[str]) -> None:
+def normalize_features(
+    master_list: List[Tuple[dict, Dict[str, float]]],
+    feature_keys: List[str]
+) -> None:
     # Modify in-place: scale each feature to [0, 1]
     min_max = {key: [float("inf"), float("-inf")] for key in feature_keys}
 
@@ -48,8 +49,10 @@ def normalize_features(master_list: List[Tuple[dict, Dict[str, float]]],
             else:
                 features[key] = 0.0  # or 1.0 — your call
 
-def average_feature_vector(top_songs: List[Tuple[dict, Dict[str, float]]],
-                           feature_keys: List[str]) -> List[float]:
+def average_feature_vector(
+    top_songs: List[Tuple[dict, Dict[str, float]]],
+    feature_keys: List[str]
+) -> List[float]:
     total = [0.0] * len(feature_keys)
     for _, features in top_songs:
         for i, key in enumerate(feature_keys):
@@ -57,9 +60,11 @@ def average_feature_vector(top_songs: List[Tuple[dict, Dict[str, float]]],
     count = len(top_songs)
     return [x / count for x in total]
 
-def find_closest_song(master_list: List[Tuple[dict, Dict[str, float]]],
-                      ideal_vector: List[float],
-                      feature_keys: List[str]) -> int:
+def find_closest_song(
+    master_list: List[Tuple[dict, Dict[str, float]]],
+    ideal_vector: List[float],
+    feature_keys: List[str]
+) -> int:
     min_dist = float("inf")
     closest_index = -1
 
@@ -78,11 +83,13 @@ def get_k_closest_songs(adj_matrix: List[List[float]], source_index: int, k: int
     return [i for _, i in closest]
 
 
-def recommend_playlist(master_list: List[Tuple[dict, Dict[str, float]]],
-                       top_100: List[Tuple[dict, Dict[str, float]]],
-                       feature_keys: List[str],
-                       adj_matrix: List[List[float]],
-                       k: int = 20) -> List[dict]:
+def recommend_playlist(
+    master_list: List[Tuple[dict, Dict[str, float]]],
+    top_100: List[Tuple[dict, Dict[str, float]]],
+    feature_keys: List[str],
+    adj_matrix: List[List[float]],
+    k: int = 20
+) -> List[dict]:
     # Step 1: average vector
     ideal_vector = average_feature_vector(top_100, feature_keys)
 
@@ -98,8 +105,8 @@ def recommend_playlist(master_list: List[Tuple[dict, Dict[str, float]]],
 
 #example use
 
-normalize_features(master_list, FEATURE_KEYS)
-normalize_features(top_100, FEATURE_KEYS)
-adj_matrix = build_adjacency_matrix(master_list, FEATURE_KEYS)
+# normalize_features(master_list, FEATURE_KEYS)
+# normalize_features(top_100, FEATURE_KEYS)
+# adj_matrix = build_adjacency_matrix(master_list, FEATURE_KEYS)
 
-playlist = recommend_playlist(master_list, top_100, FEATURE_KEYS, adj_matrix, k=20)
+# playlist = recommend_playlist(master_list, top_100, FEATURE_KEYS, adj_matrix, k=20)
