@@ -21,12 +21,15 @@ class KDNode(Generic[Data, Point]):
 class KDTree(Generic[Data, Point]):
     root: Optional[KDNode[Data, Point]]
     k: int
+    n: int
 
     def __init__(self, data_points: Sequence[Tuple[Data, Point]]) -> None:
         if not data_points:
             self.root = None
             self.k = 0
             return
+        
+        self.n = len(data_points)
         
         # Get all possible keys from the first point.
         all_keys = [PointKey(k) for k in data_points[0][1]]
@@ -125,6 +128,34 @@ class KDTree(Generic[Data, Point]):
             sorted_points.extend([None] * (limit - len(sorted_points)))
             
         return sorted_points
+
+    def calc_height(self) -> int:
+        """Calculates the height of the KD-Tree."""
+        def _height(node: Optional[KDNode]) -> int:
+            if node is None:
+                return 0  # Height of an empty tree/subtree
+            return 1 + max(_height(node.left), _height(node.right))
+
+        return _height(self.root)
+
+    def calc_density(self) -> float:
+        """
+        Calculates the density of the KD-Tree
+        Density is the ratio of actual nodes to the maximum possible nodes for a
+        binary tree of the same height. A perfectly balanced, full tree has a
+        density of 1.0. An empty tree has a density of 0.0.
+        """
+        if self.n == 0:
+            return 0.0
+        
+        h = self.calc_height()
+        # Max nodes in a binary tree of height h is 2^(h+1) - 1
+        max_nodes = (2**h) - 1
+        
+        if max_nodes == 0:
+            return 1.0 if self.n > 0 else 0.0
+            
+        return self.n / max_nodes
 
 def brute_force_nearest(data_points: List[DataPoint[Data, Point]], target: Point, limit: int) -> List[Data]:
     """Calculates nearest neighbors by checking every point."""

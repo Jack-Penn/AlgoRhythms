@@ -62,7 +62,7 @@ async def build_kd_tree_task(deps: DependencyDict) -> TaskResult:
     track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
     track_data_points = [(track, features.model_dump()) for track, features in track_list]
     kd_tree = KDTree(track_data_points)
-    return {"kd_tree": kd_tree}, {"message": "Data structure built for efficient searching"}
+    return {"kd_tree": kd_tree}, {"message": "Data structure built for efficient searching", "Tree Height": kd_tree.calc_height(), "Tree Density": f"{kd_tree.calc_density()*100:.0f}%"}
 
 async def find_kd_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskResult:
     kd_tree: KDTree = deps["kd_tree"]
