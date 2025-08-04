@@ -1,6 +1,14 @@
 const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
 
 const REDIRECT_URI = "http://[::1]:5173/login/callback";
+const SCOPES = [
+	"user-read-private",
+	"user-read-email",
+	"user-library-read",
+	"user-top-read",
+	"playlist-modify-public",
+	"playlist-modify-private",
+];
 
 export function handleSpotifyLogin() {
 	redirectToAuthCodeFlow(CLIENT_ID);
@@ -23,8 +31,7 @@ async function redirectToAuthCodeFlow(CLIENT_ID: string) {
 		response_type: "code",
 		redirect_uri: REDIRECT_URI,
 		// state: "" //TODO:  Prevent CSRF attack
-		scope:
-			"user-read-private user-read-email playlist-modify-public playlist-modify-private",
+		scope: SCOPES.join(" "),
 		code_challenge_method: "S256",
 		code_challenge: challenge,
 	};
