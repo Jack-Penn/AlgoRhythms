@@ -37,32 +37,69 @@ export const searchTracks = (query: string): Promise<TrackObject[] | null> => {
 	});
 };
 
-export const generatePlaylist = (
-	mood: string,
-	activity: string,
-	length: number,
-	favorite_songs: string[] | null,
-	targetProfile: Features,
-	weights: Weights,
-	auth: AccessTokenResponse | null,
+export const generatePlaylistStream = async (
+	params: {
+		mood: string;
+		activity: string;
+		length: number;
+		favorite_songs: string[] | null;
+		targetProfile: Features;
+		weights: Weights;
+		auth: AccessTokenResponse | null;
+	},
+	onUpdate: (chunk: any) => void,
 ) => {
-	return fetchAPI(
-		"create-playlist",
-		{
-			mood,
-			activity,
-			length,
-			favorite_songs: favorite_songs ? favorite_songs.join(",") : undefined,
+	const {
+		mood,
+		activity,
+		length,
+		favorite_songs,
+		targetProfile,
+		weights,
+		auth,
+	} = params;
+
+	const apiURL = new URL("generate-playlist", BASE_URL);
+	apiURL.search = new URLSearchParams({
+		mood,
+		activity,
+		length: String(length),
+		...(favorite_songs && { favorite_songs: favorite_songs.join(",") }),
+	}).toString();
+
+	const response = await fetch(apiURL, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
 		},
-		{
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				weights,
-				auth,
-			}),
-		},
-	);
+		body: JSON.stringify({
+			target_features: targetProfile,
+			weights,
+			auth,
+		}),
+	});
+
+	if (!response.body) {
+		throw new Error("Response has no body");
+	}
+
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+
+	while (true) {
+		const { value, done } = await reader.read();
+		if (done) break;
+
+		const chunkString = decoder.decode(value);
+		// The server sends chunks separated by double newlines
+		const chunks = chunkString.split("\n\n").filter(Boolean);
+		for (const chunk of chunks) {
+			try {
+				const data = JSON.parse(chunk);
+				onUpdate(data);
+			} catch (error) {
+				console.error("Error parsing stream chunk:", chunk, error);
+			}
+		}
+	}
 };

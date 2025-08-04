@@ -13,27 +13,30 @@ import LoadingPlaylist from "./pages/LoadingPlaylist";
 import GreedyVisualization from "./pages/GreedyVisualization";
 import Layout from "./pages/Layout";
 import FormLayout from "./pages/FormLayout";
+import { PlaylistGenerationProvider } from "./lib/components/PlaylistGenerationContext";
 
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>
 		<BrowserRouter>
 			<AuthProvider>
-				<Routes>
-					<Route path='/' element={<Layout />}>
-						<Route path='/home' element={<Home />} />
-						<Route path='/test' element={<GreedyVisualization />} />
-						<Route path='/login/callback' element={<LoginCallback />} />
-						<Route path='/' element={<FormLayout />}>
-							<Route index element={<Navigate to='/home' />} />
-							<Route path='/login' element={<Login />} />
-							<Route path='/view-playlist' element={<ViewPlaylist />} />
-							<Route path='/loading-playlist' element={<LoadingPlaylist />} />
-							<Route element={<ProtectedRoute />}>
-								<Route path='/create-playlist' element={<CreatePlaylist />} />
+				<PlaylistGenerationProvider>
+					<Routes>
+						<Route path='/' element={<Layout />}>
+							<Route path='/home' element={<Home />} />
+							<Route path='/test' element={<GreedyVisualization />} />
+							<Route path='/login/callback' element={<LoginCallback />} />
+							<Route path='/' element={<FormLayout />}>
+								<Route index element={<Navigate to='/home' />} />
+								<Route path='/login' element={<Login />} />
+								<Route path='/view-playlist' element={<ViewPlaylist />} />
+								<Route path='/loading-playlist' element={<LoadingPlaylist />} />
+								<Route element={<ProtectedRoute />}>
+									<Route path='/create-playlist' element={<CreatePlaylist />} />
+								</Route>
 							</Route>
 						</Route>
-					</Route>
-				</Routes>
+					</Routes>
+				</PlaylistGenerationProvider>
 			</AuthProvider>
 		</BrowserRouter>
 	</StrictMode>,
