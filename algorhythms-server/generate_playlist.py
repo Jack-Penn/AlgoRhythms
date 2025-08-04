@@ -75,9 +75,10 @@ async def find_kd_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskResul
 
 async def brute_force_nearest_neighbors_task(deps: DependencyDict) -> TaskResult:
     track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
+    track_data_points = [(track, features.model_dump()) for track, features in track_list]
     target_features = deps['target_features']
     playlist_length = deps["playlist_length"]
-    neighbors = brute_force_nearest(track_list, target_features, playlist_length)
+    neighbors = brute_force_nearest(track_data_points, target_features.model_dump(), limit=playlist_length)
     return {"brute_force_playlist_tracks": neighbors}, {}
 
 # async def build_graph(deps: DependencyDict) -> TaskResult:
@@ -180,7 +181,7 @@ TASK_DEFINITIONS: List[Task] = [
         label="Assembling Playlist", 
         description="Putting all the pieces together and preparing the final playlist for you to enjoy.",
         function=compile_final_results_task, 
-        dependencies=["brute_force_nearest_neighbors_task", "build_kd_tree", "find_kd_tree_nearest_neighbors"]
+        dependencies=["brute_force_nearest_neighbors", "build_kd_tree", "find_kd_tree_nearest_neighbors"]
     )
 ]
 

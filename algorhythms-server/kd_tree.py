@@ -157,7 +157,7 @@ class KDTree(Generic[Data, Point]):
             
         return self.n / max_nodes
 
-def brute_force_nearest(data_points: List[DataPoint[Data, Point]], target: Point, limit: int) -> List[Data]:
+def brute_force_nearest(data_points: List[Tuple[Data, Point]], target: Point, limit: int) -> List[Data]:
     """Calculates nearest neighbors by checking every point."""
     def euclidean_squared(p1: Point, p2: Point):
         return sum((p1[k] - p2[k])**2 for k in p1)
