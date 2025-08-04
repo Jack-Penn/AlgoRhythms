@@ -174,6 +174,9 @@ class ReccoBeatsAPIClient:
             try:
                 recco_id =ReccoTrackID(item["id"])
                 features = ReccoTrackFeatures(**item)
+                # feature normalization
+                features.loudness = features.loudness / -60
+                features.tempo = features.tempo / 250
                 track_features_map[recco_id] = features
             except ValidationError:
                 # We will skip this track instead of crashing.

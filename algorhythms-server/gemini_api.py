@@ -143,7 +143,11 @@ async def generate_target_features(mood: str, activity: str) -> ReccoTrackFeatur
     
     # Handle response
     if response.parsed:
-        return cast(ReccoTrackFeatures, response.parsed)
+        features = cast(ReccoTrackFeatures, response.parsed)
+        # normalization
+        features.loudness = features.loudness / -60
+        features.tempo = features.tempo / -250
+        return features
     else:
         raise ValueError(f"Failed to parse Gemini response: {response.text}")
 
