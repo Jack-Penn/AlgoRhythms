@@ -43,20 +43,14 @@ const AuthProvider = ({ children }: PropsWithChildren) => {
 	};
 
 	const spotifyLogin = async (tokenResponse: AccessTokenResponse) => {
-		console.log(tokenResponse);
 		// Get user's profile data
 		const spotifyProfile = await fetchProfile(tokenResponse.access_token);
 		if (spotifyProfile) {
-			console.log(spotifyProfile);
 			setUser({
 				display_name: spotifyProfile.display_name,
 				is_guest: false,
 				spotify_profile: spotifyProfile,
 			});
-			console.log(
-				"expires_at",
-				Math.floor(new Date().getTime() / 1000 + tokenResponse.expires_in),
-			);
 			setSpotifyAuth({
 				...tokenResponse,
 				expires_at: Math.floor(
