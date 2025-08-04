@@ -22,10 +22,10 @@ createRoot(document.getElementById("root")!).render(
 					<Route path='/' element={<Layout />}>
 						<Route path='/home' element={<Home />} />
 						<Route path='/test' element={<GreedyVisualization />} />
+						<Route path='/login/callback' element={<LoginCallback />} />
 						<Route path='/' element={<FormLayout />}>
 							<Route index element={<Navigate to='/home' />} />
 							<Route path='/login' element={<Login />} />
-							<Route path='/login/callback' element={<LoginCallback />} />
 							<Route path='/view-playlist' element={<ViewPlaylist />} />
 							<Route path='/loading-playlist' element={<LoadingPlaylist />} />
 							<Route element={<ProtectedRoute />}>
