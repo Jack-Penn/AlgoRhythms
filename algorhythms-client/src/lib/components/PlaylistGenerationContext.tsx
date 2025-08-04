@@ -38,8 +38,11 @@ type UpdateData = RunningUpdate | CompletedUpdate;
 type FinalData = {
 	type: "final";
 	data: {
-		// Assuming the final data contains the playlist ID
-		kd_tree_playlist?: { tracks: any[]; generation_time: number };
+		playlist_id: string;
+		final_compiled_playlists: Map<
+			string,
+			{ tracks: any[]; build_time: number; search_time: number }
+		>;
 	};
 };
 

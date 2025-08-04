@@ -42,7 +42,7 @@ export default function SpotifyEmbedPlayer({ uri }: SpotifyEmbedPlayerProps) {
 		window.onSpotifyIframeApiReady = (IFrameAPI) => {
 			if (!embedRef.current) return;
 
-			const options = { width: "100%", height: "380", uri };
+			const options = { width: "400", height: "600", uri };
 			IFrameAPI.createController(embedRef.current, options, (controller) => {
 				spotifyControllerRef.current = controller;
 				controller.addListener("ready", () => setPlayerLoaded(true));
