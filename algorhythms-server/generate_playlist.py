@@ -177,7 +177,7 @@ class TaskRunner:
         self.task_update_queue = asyncio.Queue()
         self.abort_event = asyncio.Event()
 
-    def _format_update(self, task_id: TaskID, status: Literal["running", "progress", "failed", "completed"], data=None, error=None, duration=None):
+    def _format_update(self, task_id: TaskID, status: Literal["running", "progress", "failed", "completed"], data=None, error=None, stopwatch=None):
         update = {
             "type": "update",
             "timestamp": time.time(),
@@ -186,7 +186,7 @@ class TaskRunner:
         }
         if data: update["data"] = data
         if error: update["error"] = error
-        if duration is not None: update["duration"] = f"{duration:.0f}ms"
+        if stopwatch is not None: update["duration"] = f"{stopwatch.get_formatted_time()}"
         return json.dumps(update) + "\n\n"
 
     def _task_done_callback(self, task: asyncio.Task, task_id: TaskID):
@@ -239,9 +239,7 @@ class TaskRunner:
                     raise ValueError(f"Task {task.id} did not produce a final result.")
             except Exception as e:
                 raised_exception = e
-        
-        duration = stopwatch.get_time_ms()
-        
+                
         if raised_exception:
             self.failed_tasks.add(task.id)
             # Don't report duration for cancellations, as the task was aborted.
@@ -249,7 +247,7 @@ class TaskRunner:
                 await self.task_update_queue.put(self._format_update(task.id, "failed", error="Task was cancelled."))
             else:
                 await self.task_update_queue.put(self._format_update(
-                    task.id, "failed", error=str(raised_exception), duration=duration
+                    task.id, "failed", error=str(raised_exception), stopwatch=stopwatch
                 ))
             raise raised_exception
         
@@ -259,10 +257,10 @@ class TaskRunner:
             self.completed_tasks.add(task.id)
             self.internal_task_results[task.id] = CompletedTaskData(
                 payload=internal_result,
-                duration_ms=duration
+                duration_ms=stopwatch.get_time_ms()
             )
             await self.task_update_queue.put(self._format_update(
-                task.id, "completed", data=client_result, duration=duration
+                task.id, "completed", data=client_result, stopwatch=stopwatch
             ))
 
     async def _cancel_all_running_tasks(self):

@@ -14,3 +14,13 @@ class Stopwatch():
         return self.get_time_ns() / 1_000_000
     def get_time(self):
         return self.get_time_ns() / 1_000_000_000
+    def get_formatted_time(self):
+        nanoseconds = self.get_time_ns()
+        if nanoseconds >= 1_000_000_000:
+            seconds = nanoseconds / 1_000_000_000
+            return f"{seconds:.3f} s"
+        elif nanoseconds >= 1_000_000:
+            milliseconds = nanoseconds / 1_000_000
+            return f"{milliseconds:.3f} ms"
+        else:
+            return f"{nanoseconds} ns"
