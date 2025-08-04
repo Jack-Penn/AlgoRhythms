@@ -8,28 +8,17 @@ import asyncio
 from PIL import Image
 from io import BytesIO
 import base64
+from recco_beats import ReccoTrackFeatures
 
 # Load environment variables
 load_dotenv(dotenv_path='./secrets.env')
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=gemini_api_key)
-
-# Define Pydantic models for structured output
-class TargetFeatures(BaseModel):
-    energy: float
-    valence: float
-    danceability: float
-    acousticness: float
-    instrumentalness: float
-    speechiness: float
-    liveness: float
-    tempo: int
-    loudness: int 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 class PlaylistExample(BaseModel):
     mood: str
     activity: str
-    target_features: TargetFeatures
+    target_features: ReccoTrackFeatures
     def __str__(self):
         return (
             f"- Mood: \"{self.mood}\", Activity: \"{self.activity}\"\n"
@@ -41,7 +30,7 @@ TARGET_FEATURE_EXAMPLES: List[PlaylistExample] = [
     PlaylistExample(
         mood="calm",
         activity="studying",
-        target_features=TargetFeatures(
+        target_features=ReccoTrackFeatures(
             acousticness=0.8,
             danceability=0.2,
             energy=0.3,
@@ -56,7 +45,7 @@ TARGET_FEATURE_EXAMPLES: List[PlaylistExample] = [
     PlaylistExample(
         mood="energetic",
         activity="working out",
-        target_features=TargetFeatures(
+        target_features=ReccoTrackFeatures(
             acousticness=0.1,
             danceability=0.9,
             energy=0.95,
@@ -71,7 +60,7 @@ TARGET_FEATURE_EXAMPLES: List[PlaylistExample] = [
     PlaylistExample(
         mood="melancholic",
         activity="relaxing",
-        target_features=TargetFeatures(
+        target_features=ReccoTrackFeatures(
             acousticness=0.95,
             danceability=0.1,
             energy=0.2,
@@ -85,7 +74,7 @@ TARGET_FEATURE_EXAMPLES: List[PlaylistExample] = [
     )
 ]
 
-async def generate_target_features(mood: str, activity: str) -> TargetFeatures:
+async def generate_target_features(mood: str, activity: str) -> ReccoTrackFeatures:
     """
     Converts mood and activity descriptions into target playlist parameters
     using Gemini's structured JSON output.
@@ -148,13 +137,13 @@ async def generate_target_features(mood: str, activity: str) -> TargetFeatures:
         contents=prompt,
         config={
             "response_mime_type": "application/json",
-            "response_schema": TargetFeatures,
+            "response_schema": ReccoTrackFeatures,
         }
     )
     
     # Handle response
     if response.parsed:
-        return cast(TargetFeatures, response.parsed)
+        return cast(ReccoTrackFeatures, response.parsed)
     else:
         raise ValueError(f"Failed to parse Gemini response: {response.text}")
 
