@@ -25,7 +25,7 @@ class TrackListCompiler:
 
         # Final data collection and state
         self.track_data_points: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = []
-        self.seen_track_ids: Set[SpotifyTrackID] = set()
+        self.seen_tracks: Set[str] = set()
         self.seen_tracks_lock = asyncio.Lock()
 
         # Pipeline 1: Processes primary tracks (e.g., top tracks, saved tracks)
@@ -46,9 +46,9 @@ class TrackListCompiler:
         new_tracks: List[SpotifyTrack] = []
         async with self.seen_tracks_lock:
             for track in tracks:
-                track_id = SpotifyTrackID(track.id)
-                if track_id not in self.seen_track_ids:
-                    self.seen_track_ids.add(track_id)
+                track_key = f"{track.name}|{",".join(map(lambda a: a.name, track.artists))}"
+                if track_key not in self.seen_tracks:
+                    self.seen_tracks.add(track_key)
                     new_tracks.append(track)
         
         for track in new_tracks:
@@ -76,8 +76,8 @@ class TrackListCompiler:
                 unseen_recco_tracks = []
                 for track in recco_tracks:
                     spotify_id = track.extract_spotify_id()
-                    if spotify_id and spotify_id not in self.seen_track_ids:
-                        self.seen_track_ids.add(spotify_id)
+                    if spotify_id and spotify_id not in self.seen_tracks:
+                        self.seen_tracks.add(spotify_id)
                         unseen_recco_tracks.append(track)
             
             for track in unseen_recco_tracks:
