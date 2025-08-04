@@ -1,45 +1,7 @@
 import { InformationCircleIcon } from "@heroicons/react/16/solid";
-import { useState, useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePlaylistGeneration } from "../lib/components/PlaylistGenerationContext";
-
-type Task = {
-	id: string;
-	label: string;
-	description: string;
-	status: "pending" | "running" | "completed";
-	duration?: string;
-	additionalData?: Record<string, any>;
-};
-type TaskMap = {
-	[key: string]: Task;
-};
-type InitialData = {
-	type: "initial";
-	timestamp: number;
-	tasks: (Omit<Task, "status"> & { status: "pending" })[];
-};
-interface UpdateDataBase {
-	type: "update";
-	timestamp: number;
-	task_id: string;
-	duration: string;
-}
-interface RunningUpdate extends UpdateDataBase {
-	status: "running";
-}
-interface CompletedUpdate extends UpdateDataBase {
-	status: "completed";
-	data: any;
-}
-type UpdateData = RunningUpdate | CompletedUpdate;
-type FinalData = {
-	type: "final";
-	timestamp: number;
-	playlist_id: string;
-};
-
-type ChunkData = InitialData | UpdateData | FinalData;
 
 const LoadingPlaylist = () => {
 	const navigate = useNavigate();
