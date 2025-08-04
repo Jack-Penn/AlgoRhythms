@@ -20,8 +20,10 @@ from track_compiler import TrackListCompiler
 from brute_force import brute_force_nearest
 from kd_tree import KDTree
 from ball_tree import BallTree
+from  spotify_api import SpotifyTrack, spotify_api_client
 from  recco_beats import ReccoTrackFeatures
 from timing import Stopwatch
+from gemini_api import generate_playlist_name
 
 class TaskID(NamedStringType):
     pass
@@ -115,12 +117,30 @@ class PlaylistResponse(BaseModel):
     tracks: List[SpotifyTrack]
     generation_time: float
 
+async def create_playlist_task(deps: DependencyDict) -> TaskResult:
+    """
+    Gathers results from all playlist-generating tasks and assembles the final response.
+    """
+    mood = deps["mood"]
+    activity = deps["activity"]
+    tracks: List[SpotifyTrack]=deps["brute_force_playlist_tracks"]
+    track_uris= [track.id.get_uri() for track in tracks]
+
+    playlist_name = await generate_playlist_name(mood, activity, tracks)
+    sp = deps["spotify_user_access"]
+    playlist = await spotify_api_client.create_playlist(sp, playlist_name, "[description]", track_uris)
+    if playlist:    
+        return {"playlist_id": playlist.id}, {}
+    return {}, {"message": "error: could not create playlist at this time"}
+
 async def compile_final_results_task(deps: DependencyDict) -> TaskResult:
     """
     Gathers results from all playlist-generating tasks and assembles the final response.
     """
     final_playlists = {}
     metadata = deps.get("_dependency_metadata", {})
+
+    playlist_id = deps.get("playlist_id", None)        
 
     if "brute_force_playlist_tracks" in deps:
         duration = metadata.get(TaskID("brute_force_nearest_neighbors"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
@@ -153,7 +173,7 @@ async def compile_final_results_task(deps: DependencyDict) -> TaskResult:
         final_playlists["ball_tree_playlist"] = ball_playlist.model_dump()
     
     # This task's InternalResult is the final payload.
-    internal_result = {"final_compiled_playlists": final_playlists}
+    internal_result = {"final_compiled_playlists": final_playlists, "playlist_id": playlist_id}
     client_result = {"message": f"Successfully compiled {len(final_playlists)} playlists."}
 
     return internal_result, client_result
@@ -215,14 +235,19 @@ TASK_DEFINITIONS: List[Task] = [
         function=find_ball_tree_nearest_neighbors_task, 
         dependencies=["build_ball_tree"]
     ),
-        id="compile_final_results", 
+    define_task(
+        id="create_playlist", 
         label="Assembling Playlist", 
+        description="Putting all the pieces together and preparing the final playlist for you to enjoy.",
+        function=create_playlist_task, 
+        dependencies=["brute_force_nearest_neighbors", "build_kd_tree", "find_kd_tree_nearest_neighbors", "build_ball_tree", "find_ball_tree_nearest_neighbors"]
+    ),
     define_task(
         id="compile_final_results", 
         label="Compiling Results", 
         description="Putting all the pieces together and preparing the final playlist for you to enjoy.",
         function=compile_final_results_task, 
-        dependencies=["brute_force_nearest_neighbors", "build_kd_tree", "find_kd_tree_nearest_neighbors"]
+        dependencies=["create_playlist", "brute_force_nearest_neighbors", "build_kd_tree", "find_kd_tree_nearest_neighbors", "build_ball_tree", "find_ball_tree_nearest_neighbors"]
     )
 ]
 

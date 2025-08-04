@@ -9,6 +9,7 @@ from PIL import Image
 from io import BytesIO
 import base64
 from recco_beats import ReccoTrackFeatures
+from spotify_api import SpotifyTrack
 
 # Load environment variables
 load_dotenv(dotenv_path='./secrets.env')
@@ -264,6 +265,32 @@ async def generate_playlist_search_query(target_features: Optional[ReccoTrackFea
     except Exception as e:
         print(f"Error generating playlist query with Gemini: {e}")
         return context
+
+async def generate_playlist_name(mood: str, activity: str, tracks: List[SpotifyTrack]) -> str:
+    def format_track(track: SpotifyTrack):
+        return f"track.name by {", ".join(map(lambda artist: artist.name, track.artists))}"
+
+    prompt = f'''
+        Genearate a fun name for a music playlist. Please include at least one or two emojis
+        
+        Here are some details about the playlist
+            mood: {mood}
+            activity: {activity}
+            songs:
+            {"\n".join(map(format_track, tracks))}
+    '''
+    response = await asyncio.to_thread(
+        client.models.generate_content,
+        model="gemini-2.5-flash-lite-preview-06-17",
+        contents=prompt,
+        config={
+            "response_mime_type": "application/json",
+        }
+    )
+
+    if response.text:
+        return response.text
+    return ""
 
 async def generate_emoji(term: str) -> str:
     import emoji
