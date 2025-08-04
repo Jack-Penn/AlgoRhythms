@@ -1,4 +1,5 @@
 import heapq
+import itertools
 from typing import Generic, List, Mapping, Optional, Sequence, Tuple, TypeVar
 
 # --- Type Aliases ---
@@ -68,9 +69,13 @@ class KDTree(Generic[Data, Point]):
             return sum((p1[k] - p2[k])**2 for k in p1)
         
         # We use a max-heap to keep track of the `limit` closest points.
-        # Since Python's heapq is a min-heap, we store (-distance, point) tuples.
+        # Since Python's heapq is a min-heap, we store (-distance, tie_breaker, point) tuples.
+
+        # A tie breaker is used for when distanes are equal in the heap
+        tie_breaker = itertools.count()
+
         # The smallest negative distance is the largest distance.
-        best_candidates: List[Tuple[float, Data]] = []
+        best_candidates: List[Tuple[float, int, Data]] = []
 
         def process_branch(node: Optional[KDNode]) -> None:
             if node is None:
@@ -79,14 +84,16 @@ class KDTree(Generic[Data, Point]):
             axis: PointKey = node.key
             # Check current node against the candidates
             dist = euclidean_squared(target, node.point)
+
+            heap_item = (-dist, next(tie_breaker), node.data)
             
             # If the heap isn't full, add the new point.
             if len(best_candidates) < limit:
-                heapq.heappush(best_candidates, (-dist, node.data))
+                heapq.heappush(best_candidates, heap_item)
             # If the heap is full, and this point is closer than the farthest candidate, replace it.
             elif dist <= -best_candidates[0][0]: # best_candidates[0] is the largest distance
                 # heapreplace pops the top element and inserts the new element into the heap
-                heapq.heapreplace(best_candidates, (-dist, node.data))
+                heapq.heapreplace(best_candidates, heap_item)
 
             # Determine which branch to search first
             if target[axis] < node.point[axis]:
@@ -111,7 +118,7 @@ class KDTree(Generic[Data, Point]):
         
         # Extract points from the heap and sort them by distance (closest first)
         sorted_candidates = sorted(best_candidates, key=lambda item: -item[0])
-        sorted_points: List[Optional[Data]] = [data for neg_dist, data in sorted_candidates]
+        sorted_points: List[Optional[Data]] = [data for neg_dist, tie_breaker, data in sorted_candidates]
         
         # Pad the list with None if fewer than `limit` points were found
         if len(sorted_points) < limit:
