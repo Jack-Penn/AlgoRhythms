@@ -30,9 +30,14 @@ class PlaylistExample(BaseModel):
     mood: str
     activity: str
     target_features: TargetFeatures
+    def __str__(self):
+        return (
+            f"- Mood: \"{self.mood}\", Activity: \"{self.activity}\"\n"
+            f"  TargetFeatures: {self.target_features.model_dump()}"
+        )
 
 # Define examples as structured objects
-EXAMPLES: List[PlaylistExample] = [
+TARGET_FEATURE_EXAMPLES: List[PlaylistExample] = [
     PlaylistExample(
         mood="calm",
         activity="studying",
@@ -79,16 +84,6 @@ EXAMPLES: List[PlaylistExample] = [
         )
     )
 ]
-
-def format_playlist_examples(examples: List[PlaylistExample]) -> str:
-    """Converts structured examples into prompt text"""
-    formatted = []
-    for ex in examples:
-        formatted.append(
-            f"- Mood: \"{ex.mood}\", Activity: \"{ex.activity}\"\n"
-            f"  TargetFeatures: {ex.target_features.model_dump()}"
-        )
-    return "\n\n".join(formatted)
 
 async def generate_target_features(mood: str, activity: str) -> TargetFeatures:
     """
@@ -143,7 +138,7 @@ async def generate_target_features(mood: str, activity: str) -> TargetFeatures:
     Please return actual BPM for tempo and dB for loudness (not normalized values).
 
     Here are some example feautre outputs:
-    {format_playlist_examples(EXAMPLES)}
+    {'\n\n'.join(map(str, TARGET_FEATURE_EXAMPLES))}
     """
     
     # Wrap synchronous API call in thread
@@ -164,18 +159,38 @@ async def generate_target_features(mood: str, activity: str) -> TargetFeatures:
         raise ValueError(f"Failed to parse Gemini response: {response.text}")
 
 async def generate_emoji(term: str) -> str:
-    response = await asyncio.to_thread(
-        client.models.generate_content,
-        model="gemini-2.5-flash-lite-preview-06-17",
-        contents=f"please generate a single emoji that most closely represents the given input. Only generate one emoji character. input: {term}",
-        config={}
-    )
-    if response.text:
-        if len(response.text) > 2:
-            raise ValueError("Gemini did not respond with a single emoji")
-        return response.text
-    else:
-        raise ValueError("Gemini did not respond error")
+    import emoji
+    default_emoji = "❓"
+
+    try:
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.5-flash",
+            contents=(
+                "Generate a single emoji that most closely represents the given "
+                "input. Only generate one emoji character, and nothing else. "
+                f"Input: {term}"
+            )
+        )
+
+        if not response.text:
+            return default_emoji
+        
+        candidate = response.text.strip()
+
+        # Validate that the entire response string is one single emoji.
+        if candidate and emoji.emoji_count(candidate) == 1:
+            # Extract the emoji to ensure no surrounding text is present.
+            emojis_found = emoji.distinct_emoji_list(candidate)
+            if len(emojis_found) == 1 and emojis_found[0] == candidate:
+                return candidate
+
+    except Exception as e:
+        # For production code, you might want to log this error.
+        print(f"An error occurred while generating an emoji for '{term}': {e}")
+    
+    # If any part of the process fails, return the default.
+    return default_emoji
 
 async def generate_playlist_image(quality=85):
     """

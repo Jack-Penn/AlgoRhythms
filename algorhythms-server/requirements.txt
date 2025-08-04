@@ -4,8 +4,10 @@ cachetools==5.5.2
 certifi==2025.6.15
 charset-normalizer==3.4.2
 click==8.2.1
+colorama==0.4.6
 dnspython==2.7.0
 email_validator==2.2.0
+emoji==2.14.1
 fastapi==0.115.14
 fastapi-cli==0.0.7
 google-auth==2.40.3
@@ -19,6 +21,7 @@ Jinja2==3.1.6
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 mdurl==0.1.2
+pillow==11.3.0
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pydantic==2.11.7
