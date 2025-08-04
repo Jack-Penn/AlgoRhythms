@@ -169,7 +169,7 @@ async def generate_playlist_search_query(target_features: Optional[ReccoTrackFea
 
     context = ", ".join(context_parts) if context_parts else "General listening"
 
-    if not target_features:
+    if target_features is None:
         return context
 
     # Use the same feature definitions from the original code
@@ -204,14 +204,13 @@ async def generate_playlist_search_query(target_features: Optional[ReccoTrackFea
 
     # Create a detailed prompt for Gemini using all 9 audio features
     prompt = f"""
-    Generate a concise playlist search query (2-4 words) that would find relevant playlists on Spotify.
+    Generate a concise playlist search query (2-4 words) to find relevant playlists on Spotify.
 
+    Use the following context and TargetAudio Features as input
+    
     Context: {context}
 
-    Audio Features:
-    {feature_definitions}
-
-    Current Target Values:
+    Target Audio Features:
     - Acousticness: {target_features.acousticness:.2f}
     - Danceability: {target_features.danceability:.2f}
     - Energy: {target_features.energy:.2f}
@@ -221,6 +220,9 @@ async def generate_playlist_search_query(target_features: Optional[ReccoTrackFea
     - Speechiness: {target_features.speechiness:.2f}
     - Tempo: {target_features.tempo} BPM
     - Valence: {target_features.valence:.2f}
+
+    Audio Features:
+    {feature_definitions}
 
     Examples of good playlist queries based on feature combinations:
     - High energy + high valence + fast tempo → "Workout Pump Up"
@@ -242,7 +244,6 @@ async def generate_playlist_search_query(target_features: Optional[ReccoTrackFea
             contents=prompt,
             config={
                 "response_mime_type": "application/json",
-                "response_schema": ReccoTrackFeatures,
             }
         )
 
