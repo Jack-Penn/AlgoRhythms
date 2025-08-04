@@ -2,10 +2,8 @@ import asyncio
 import os
 import random
 import string
-import threading
 import webbrowser
 from typing import Tuple, cast
-
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from spotipy import Spotify
@@ -144,6 +142,8 @@ class SpotifyUserAuthenticator:
         oauth.get_access_token(code, as_dict=False) # as_dict=False to store in cache
         self.token_obtained_event.set()
 
+# Create a shared placeholder for the active authenticator instance
+_active_authenticator: SpotifyUserAuthenticator | None = None
 
 # --- Standalone Utilities ---
 
@@ -181,7 +181,7 @@ async def get_spotify_clients() -> Tuple[Spotify, Spotify]:
     """
     from spotify_api import spotify_api_client
 
-    global _server_access, _algorhythms_account
+    global _server_access, _algorhythms_account, _active_authenticator
 
     # If clients are already initialized, return them immediately
     if _server_access and _algorhythms_account:
@@ -195,12 +195,11 @@ async def get_spotify_clients() -> Tuple[Spotify, Spotify]:
     
     # Initialize the user-authenticated client
     print("Initializing user-authenticated client ('algorhythms_account')...")
-    _authenticator = SpotifyUserAuthenticator()
-    # Use the async version of authenticate
-    _algorhythms_account = await _authenticator.authenticate() 
+    _active_authenticator = SpotifyUserAuthenticator()
+    _algorhythms_account = await _active_authenticator.authenticate() 
 
     # Verify user authentication
-    if _authenticator.token_obtained_event.is_set():
+    if _active_authenticator.token_obtained_event.is_set():
         try:
             # We need to await get_user now
             user_info = await spotify_api_client.get_user(_algorhythms_account)
