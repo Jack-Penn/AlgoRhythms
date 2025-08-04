@@ -17,8 +17,9 @@ from pydantic import BaseModel
 from _types import *
 from spotipy import Spotify
 from track_compiler import TrackListCompiler
-from kd_tree import KDTree, brute_force_nearest
-from  spotify_api import SpotifyTrack
+from brute_force import brute_force_nearest
+from kd_tree import KDTree
+from ball_tree import BallTree
 from  recco_beats import ReccoTrackFeatures
 from timing import Stopwatch
 
@@ -60,26 +61,40 @@ async def compile_track_list_task(deps: DependencyDict) -> TaskResult:
     track_data_points = await track_compiler.compile()
     return {"track_data_points": track_data_points}, {"message": f"Compiled {len(track_data_points)} total tracks"}
 
-async def build_kd_tree_task(deps: DependencyDict) -> TaskResult:
-    track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
-    track_data_points = [(track, features.model_dump()) for track, features in track_list]
-    kd_tree = KDTree(track_data_points)
-    return {"kd_tree": kd_tree}, {"message": "Data structure built for efficient searching", "Tree Height": kd_tree.calc_height(), "Tree Density": f"{kd_tree.calc_density()*100:.0f}%"}
-
-async def find_kd_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskResult:
-    kd_tree: KDTree = deps["kd_tree"]
-    target_features = deps['target_features']
-    playlist_length = deps["playlist_length"]
-    neighbors = kd_tree.nearest_neighbors(target_features.model_dump(), limit=playlist_length)
-    return {"kd_tree_playlist_tracks": neighbors}, {"message": f"Found {len(neighbors)} tracks that match your vibe"}
-
 async def brute_force_nearest_neighbors_task(deps: DependencyDict) -> TaskResult:
     track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
     track_data_points = [(track, features.model_dump()) for track, features in track_list]
     target_features = deps['target_features']
     playlist_length = deps["playlist_length"]
     neighbors = brute_force_nearest(track_data_points, target_features.model_dump(), limit=playlist_length)
-    return {"brute_force_playlist_tracks": neighbors}, {}
+    return {"brute_force_playlist_tracks": neighbors}, {"message": f"Found best {len(neighbors)} tracks that match your vibe"}
+
+async def build_kd_tree_task(deps: DependencyDict) -> TaskResult:
+    track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
+    track_data_points = [(track, features.model_dump()) for track, features in track_list]
+    kd_tree = KDTree(track_data_points)
+    return {"kd_tree": kd_tree}, {"message": "KD-Tree data structure built for efficient searching", "Dimensions": kd_tree.k, "K-D Tree Height": kd_tree.calc_height(), "K-D Tree Density": f"{kd_tree.calc_density()*100:.0f}%"}
+
+async def find_kd_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskResult:
+    kd_tree: KDTree = deps["kd_tree"]
+    target_features = deps['target_features']
+    playlist_length = deps["playlist_length"]
+    neighbors = kd_tree.nearest_neighbors(target_features.model_dump(), limit=playlist_length)
+    return {"kd_tree_playlist_tracks": neighbors}, {"message": f"Found best {len(neighbors)} tracks that match your vibe"}
+
+async def build_ball_tree_task(deps: DependencyDict) -> TaskResult:
+    track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
+    track_data_points = [(track, features.model_dump()) for track, features in track_list]
+    ball_tree = BallTree(track_data_points)
+    return {"ball_tree": ball_tree}, {"message": "Ball Tee data structure built for efficient searching", "Ball Tree Height": ball_tree.calc_height(), "Ball Tree Density": f"{ball_tree.calc_density()*100:.0f}%"}
+
+async def find_ball_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskResult:
+    ball_tree: KDTree = deps["ball_tree"]
+    target_features = deps['target_features']
+    playlist_length = deps["playlist_length"]
+    neighbors = ball_tree.nearest_neighbors(target_features.model_dump(), limit=playlist_length)
+    return {"ball_tree_playlist_tracks": neighbors}, {"message": f"Found best {len(neighbors)} tracks that match your vibe"}
+
 
 # async def build_graph(deps: DependencyDict) -> TaskResult:
 #     pass
@@ -120,12 +135,22 @@ async def compile_final_results_task(deps: DependencyDict) -> TaskResult:
         build_duration = metadata.get(TaskID("build_kd_tree"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
         find_duration = metadata.get(TaskID("find_kd_tree_nearest_neighbors"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
         
-        # Create the final client-facing object right here
+        # Create the final client-facing object
         kd_playlist = PlaylistResponse(
             tracks=deps["kd_tree_playlist_tracks"],
             generation_time=(build_duration + find_duration)
         )
         final_playlists["kd_tree_playlist"] = kd_playlist.model_dump()
+
+    if "ball_tree_playlist_tracks" in deps:
+        build_duration = metadata.get(TaskID("build_ball_tree"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
+        find_duration = metadata.get(TaskID("find_ball_tree_nearest_neighbors"), CompletedTaskData(payload={}, duration_ms=0)).duration_ms
+        
+        ball_playlist = PlaylistResponse(
+            tracks=deps["ball_tree_playlist_tracks"],
+            generation_time=(build_duration + find_duration)
+        )
+        final_playlists["ball_tree_playlist"] = ball_playlist.model_dump()
     
     # This task's InternalResult is the final payload.
     internal_result = {"final_compiled_playlists": final_playlists}
@@ -164,21 +189,37 @@ TASK_DEFINITIONS: List[Task] = [
     ),
     define_task(
         id="build_kd_tree", 
-        label="Building Search Tree", 
+        label="Building K-D Search Tree", 
         description="Organizing your music into a high-dimensional k-d tree structure. This allows for hyper-fast searching of songs that match your requested vibe.",
         function=build_kd_tree_task, 
         dependencies=["compile_track_list"]
     ),
     define_task(
         id="find_kd_tree_nearest_neighbors", 
-        label="Finding Vibe Matches", 
+        label="Search K-D Tree Vibe Matches", 
         description="Searching the k-d tree for the songs with audio features closest to the ones you've requested. This is where the magic happens.",
         function=find_kd_tree_nearest_neighbors_task, 
         dependencies=["build_kd_tree"]
     ),
     define_task(
+        id="build_ball_tree", 
+        label="Building Ball Tree", 
+        description="..",
+        function=build_ball_tree_task, 
+        dependencies=["compile_track_list"]
+    ),
+    define_task(
+        id="find_ball_tree_nearest_neighbors", 
+        label="Searching Ball Tree Vibe Matches", 
+        description="Searching the ball tree for the songs with audio features closest to the ones you've requested. This is where the magic happens.",
+        function=find_ball_tree_nearest_neighbors_task, 
+        dependencies=["build_ball_tree"]
+    ),
         id="compile_final_results", 
         label="Assembling Playlist", 
+    define_task(
+        id="compile_final_results", 
+        label="Compiling Results", 
         description="Putting all the pieces together and preparing the final playlist for you to enjoy.",
         function=compile_final_results_task, 
         dependencies=["brute_force_nearest_neighbors", "build_kd_tree", "find_kd_tree_nearest_neighbors"]
