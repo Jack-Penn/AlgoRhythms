@@ -1,6 +1,7 @@
 import { InformationCircleIcon } from "@heroicons/react/16/solid";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { usePlaylistGeneration } from "../lib/components/PlaylistGenerationContext";
 
 type Task = {
 	id: string;
@@ -42,87 +43,31 @@ type ChunkData = InitialData | UpdateData | FinalData;
 
 const LoadingPlaylist = () => {
 	const navigate = useNavigate();
-
-	const isInitalized = useRef(false);
-	const [tasks, setTasks] = useState<TaskMap>({});
+	const { tasks, status, finalData } = usePlaylistGeneration();
 
 	useEffect(() => {
-		const processStream = async () => {
-			const response = await fetch("http://127.0.0.1:8000/generate-playlist");
-			if (!response.body) {
-				console.error("Could not fetch generate-playlist", response);
-				return;
-			}
-			const reader = response.body.getReader();
-			const decoder = new TextDecoder();
-
-			while (true) {
-				const { value, done } = await reader.read();
-				if (done) break;
-
-				// represents newest received chunks from server connection
-				const chunks = decoder.decode(value).split("\n\n");
-				for (const chunk of chunks) {
-					if (!chunk.trim()) continue;
-
-					try {
-						const data: ChunkData = JSON.parse(chunk);
-
-						switch (data.type) {
-							case "initial":
-								// Initialize tasks with definitions
-								const initialTasks: TaskMap = data.tasks.reduce(
-									(obj, task) => ({ ...obj, [task.id]: task }),
-									{},
-								);
-								setTasks(initialTasks);
-								break;
-							case "update":
-								// Update specific task
-								setTasks((prev) => {
-									const updatedTask = {
-										...prev[data.task_id],
-										status: data.status,
-										...(data.duration && { duration: data.duration }),
-									};
-									// Add this block to handle additional data
-									if (data.status === "completed" && "data" in data) {
-										updatedTask.additionalData = data.data;
-									}
-									return {
-										...prev,
-										[data.task_id]: updatedTask,
-									};
-								});
-								break;
-							case "final":
-								// setTimeout(() => {
-								// 	// Navigate to view-playlist route with playlist ID
-								// 	navigate(`/view-playlist`);
-								// }, 1000);
-								break; // Exit the loop after navigation
-						}
-						if (data.type === "initial") {
-						} else if (data.type === "update") {
-						}
-					} catch (error) {
-						console.error("Error parsing chunk:", error);
-					}
-				}
-			}
-		};
-
-		if (!isInitalized.current) {
-			isInitalized.current = true;
-			processStream();
+		// When the stream is completed and we have the final data, navigate away
+		if (status === "completed" && finalData) {
+			console.log("Recieved Final Data", finalData);
+			// const playlistId = finalData.kd_tree_playlist?.tracks[0]?.id; // Example of getting an ID
+			// // Use a timeout to let the user see the final completed state
+			// setTimeout(() => {
+			// 	// TODO: Navigate to the actual playlist view page
+			// 	// navigate(`/view-playlist/${playlistId}`);
+			// 	console.log("Navigating to final playlist...", finalData);
+			// }, 1500);
 		}
-	}, []);
+	}, [status, finalData, navigate]);
 
 	// Calculate progress percentage
 	const taskList = Object.values(tasks);
 	const completed = taskList.filter((t) => t.status === "completed").length;
 	const progress =
-		taskList.length != 0 ? (completed / taskList.length) * 100 : 0;
+		taskList.length > 0
+			? (completed / taskList.length) * 100
+			: status === "streaming"
+			? 0
+			: 100;
 
 	return (
 		<div className='w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden'>

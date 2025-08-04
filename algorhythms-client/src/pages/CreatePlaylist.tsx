@@ -8,7 +8,6 @@ import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
-	generatePlaylist,
 	getGeneratedTargetFeatures,
 	getGenerateEmoji,
 	searchTracks,
@@ -19,8 +18,11 @@ import { useAuth } from "../auth/AuthProvider";
 import type { Weights, Features } from "../lib/types";
 import { lerpTailwindColor } from "../lib/color";
 import Header from "../lib/components/Header";
+import { usePlaylistGeneration } from "../lib/components/PlaylistGenerationContext";
+import { useNavigate } from "react-router-dom";
 
 export default function CreatePlaylist() {
+	const navigate = useNavigate();
 	const { user, spotifyAuth } = useAuth();
 
 	// Form states
@@ -128,18 +130,22 @@ export default function CreatePlaylist() {
 			setHasManualAdjustment(true);
 		};
 
+	const { startGeneration } = usePlaylistGeneration();
 	async function submitForm() {
-		// Combine weights and target features for submission
-		const res = await generatePlaylist(
+		console.log("submitting");
+		startGeneration({
 			mood,
 			activity,
-			playlistLength,
-			selectedTracks.length ? selectedTracks.map(({ uri }) => uri) : null,
-			targetFeatures,
+			length: playlistLength,
+			favorite_songs: selectedTracks.length
+				? selectedTracks.map(({ uri }) => uri)
+				: null,
+			targetProfile: targetFeatures,
 			weights,
-			spotifyAuth,
-		);
-		console.log(res);
+			auth: spotifyAuth,
+		});
+		// Navigate to the loading page after initiating the stream
+		navigate("/loading-playlist");
 	}
 
 	const Divider = () => <div className='border-t border-gray-200 my-6' />;
