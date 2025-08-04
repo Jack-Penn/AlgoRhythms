@@ -54,7 +54,9 @@ class Task(BaseModel):
 async def compile_track_list_task(deps: DependencyDict) -> TaskResult:
     spotify = deps["spotify_user_access"]
     target_features = deps['target_features']
-    track_compiler = TrackListCompiler(spotify, target_features)
+    mood = deps["mood"]
+    activity = deps["activity"]
+    track_compiler = TrackListCompiler(spotify, mood, activity, target_features)
     track_data_points = await track_compiler.compile()
     return {"track_data_points": track_data_points}, {"message": f"Compiled {len(track_data_points)} total tracks"}
 
@@ -74,17 +76,17 @@ async def find_kd_tree_nearest_neighbors_task(deps: DependencyDict) -> TaskResul
 # async def build_graph(deps: DependencyDict) -> TaskResult:
 #     pass
 
-async def process_audio_task(deps: DependencyDict, result: ResultCallback) -> GeneratorResults:
-    # Actual implementation would go here
-    steps = 3
-    for i in range(steps):
-        # Simulate processing time
-        await asyncio.sleep(1)
-        # Yield progress update
-        yield ProgressUpdate({"message": f"Processed {i+1}/{steps} audio segments"})
+# async def process_audio_task(deps: DependencyDict, result: ResultCallback) -> GeneratorResults:
+#     # Actual implementation would go here
+#     steps = 3
+#     for i in range(steps):
+#         # Simulate processing time
+#         await asyncio.sleep(1)
+#         # Yield progress update
+#         yield ProgressUpdate({"message": f"Processed {i+1}/{steps} audio segments"})
     
-    # Return final result
-    result(({}, {"message": "Audio processing complete"}))
+#     # Return final result
+#     result(({}, {"message": "Audio processing complete"}))
 
 class PlaylistResponse(BaseModel):
     tracks: List[SpotifyTrack]
@@ -331,12 +333,16 @@ class TaskRunner:
 async def playlist_task_generator(
     request: Optional[Request],
     spotify_user_access: Spotify,
+    mood: Optional[str],
+    activity: Optional[str],
     target_features: ReccoTrackFeatures,
     playlist_length: int,
 ):
     '''Main API entrypoint that creates and runs the TaskRunner.'''
     initial_deps = {
         "spotify_user_access": spotify_user_access,
+        "mood": mood,
+        "activity": activity,
         "target_features": target_features,
         "playlist_length": playlist_length,
     }
@@ -384,6 +390,8 @@ async def main():
     async for value in playlist_task_generator(
         request=None, 
         spotify_user_access=algorhythms_account,
+        mood=None,
+        activity=None,
         target_features=ReccoTrackFeatures(
             acousticness=0.5,
             danceability=0.1,

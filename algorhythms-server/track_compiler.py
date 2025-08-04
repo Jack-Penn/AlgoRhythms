@@ -4,7 +4,7 @@ from spotify_api import SpotifyAPIClient, spotify_api_client, SpotifyTrack
 from recco_beats import ReccoBeatsAPIClient, recco_api_client, ReccoTrackDetails, ReccoTrackFeatures, ReccoTrackID
 from spotipy import Spotify
 from _types import *
-# from generate_playlist import GeneratorResults, ResultCallback
+from gemini_api import generate_playlist_search_query
 import producer_consumer as pc
 from timing import Stopwatch
 
@@ -17,8 +17,10 @@ def _chunk_list(data: List, size: int) -> List[List]:
 class TrackListCompiler:
     """Compiles a master track list using a three-stage, concurrent pipeline architecture."""
 
-    def __init__(self, spotify_user_access: Spotify, target_features: Optional[ReccoTrackFeatures], spotify_client: SpotifyAPIClient = spotify_api_client, recco_client: ReccoBeatsAPIClient = recco_api_client):
+    def __init__(self, spotify_user_access: Spotify, mood: Optional[str], activity: Optional[str], target_features: Optional[ReccoTrackFeatures], spotify_client: SpotifyAPIClient = spotify_api_client, recco_client: ReccoBeatsAPIClient = recco_api_client):
         self.sp = spotify_user_access
+        self.mood = mood
+        self.activity = activity
         self.target_features = target_features
         self.spotify_client = spotify_client
         self.recco_client = recco_client
@@ -86,7 +88,9 @@ class TrackListCompiler:
 
     def _create_playlists_tracks_producer(self, limit: int, track_limit: int = 50) -> pc.ProduceBatchCallback:
         async def playlists_producer():
-            playlists = await self.spotify_client.search_playlist(self.sp, "Chill Workout", limit=10)
+            playlist_search_query = await generate_playlist_search_query(self.target_features, self.mood, self.activity)
+            print("playlist_search_query", playlist_search_query)
+            playlists = await self.spotify_client.search_playlist(self.sp, playlist_search_query, limit=10)
             producers = [self._create_single_playlist_tracks_producer(p.id, track_limit) for p in playlists[:limit]]
             await self.primary_tracks_pc.add_producers(producers)
         return playlists_producer
@@ -179,6 +183,8 @@ async def test_track_compiler():
     _, algorhythms_account = await get_spotify_clients()
     track_compiler = TrackListCompiler(
         spotify_user_access=algorhythms_account,
+        mood=None,
+        activity=None,
         target_features=None
     )
 
