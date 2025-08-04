@@ -269,6 +269,12 @@ class SpotifyAPIClient:
         tracks = [SpotifyTrack(**item) for item in items]
         return self.deduplicate_tracks(tracks)
 
+    async def get_tracks_details(self, sp: Spotify, track_ids: List[SpotifyTrackID]):
+        response = await self._make_request(lambda: sp.tracks(track_ids))
+        if not response:
+            return
+        return [SpotifyTrack(**track) for track in response["tracks"]]
+
     def deduplicate_tracks(self, tracks: List[SpotifyTrack]) -> list[SpotifyTrack]:
         seen: set[SpotifyTrackID] = set()
         unique_tracks = []
@@ -293,6 +299,18 @@ class SpotifyAPIClient:
             extract_items=lambda response: response["playlists"]["items"]
         )
         return  [SpotifyPlaylist(**item) for item in items if item] # Filter out None values
+
+    async def get_playlist_items(self, sp: Spotify, playlist_id: str, limit: int):
+        items = await self._handle_pagination(
+            func=sp.playlist_items,
+            args={
+                "playlist_id": playlist_id
+            },
+            limit=limit,
+            extract_items=lambda response: response["items"]
+        )
+        return [SpotifyTrack(**item["track"]) for item in items if item and item.get("track")]
+
 
 spotify_api_client = SpotifyAPIClient() # exported shared client instance
 
