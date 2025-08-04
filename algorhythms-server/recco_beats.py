@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any, Dict, List, Optional
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 from _types import *
 
 class ReccoTrackID(NamedStringType):
@@ -141,7 +141,7 @@ class ReccoBeatsAPIClient:
         track_ids: List[SpotifyTrackID]
     ) -> Dict[SpotifyTrackID, Optional[ReccoTrackDetails]]:
         """
-        Get track details for a batch of Spotify or Recco Track IDs
+        Get track details for a batch of Spotify Track IDs
         Returns dict mapping the ID to Track Details (or None if not found)
         """
         response = await self._make_request( "/track", {"ids": ",".join(track_ids)})
@@ -174,8 +174,12 @@ class ReccoBeatsAPIClient:
                 recco_id =ReccoTrackID(item["id"])
                 features = ReccoTrackFeatures(**item)
                 track_features_map[recco_id] = features
+            except ValidationError:
+                # We will skip this track instead of crashing.
+                pass 
             except Exception as e:
-                print(e)
+                # Catch any other unexpected errors during parsing
+                print(f"An unexpected error occurred while parsing item {item.get('id')}: {e}")
                 pass
         return track_features_map
 
