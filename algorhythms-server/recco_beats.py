@@ -60,7 +60,7 @@ class ReccoBeatsAPIClient:
     """Client for interacting with ReccoBeats API"""
     def __init__(self, concurrent_request_limit: int = 10):
         self.semaphore = asyncio.Semaphore(concurrent_request_limit)
-        self.timeout = httpx.Timeout(10.0, connect=30.0)
+        self.timeout = httpx.Timeout(10.0, connect=15.0)
     
     async def _make_request(
         self,
@@ -174,6 +174,9 @@ class ReccoBeatsAPIClient:
             try:
                 recco_id =ReccoTrackID(item["id"])
                 features = ReccoTrackFeatures(**item)
+                # feature normalization
+                features.loudness = features.loudness / -60
+                features.tempo = features.tempo / 250
                 track_features_map[recco_id] = features
             except ValidationError:
                 # We will skip this track instead of crashing.

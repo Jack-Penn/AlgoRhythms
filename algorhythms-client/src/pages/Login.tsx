@@ -40,7 +40,7 @@ const Login = () => {
 					</button>
 				</div>
 
-				<div className='mt-8 pt-5 border-t border-gray-200'>
+				{/* <div className='mt-8 pt-5 border-t border-gray-200'>
 					<button
 						className='cursor-pointer w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-3 rounded-lg hover:opacity-90 transition-opacity shadow-md'
 						onClick={() => {
@@ -50,7 +50,7 @@ const Login = () => {
 					>
 						Continue as Guest
 					</button>
-				</div>
+				</div> */}
 			</div>
 		</>
 	);

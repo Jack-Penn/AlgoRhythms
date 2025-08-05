@@ -4,7 +4,7 @@ from spotify_api import SpotifyAPIClient, spotify_api_client, SpotifyTrack
 from recco_beats import ReccoBeatsAPIClient, recco_api_client, ReccoTrackDetails, ReccoTrackFeatures, ReccoTrackID
 from spotipy import Spotify
 from _types import *
-# from generate_playlist import GeneratorResults, ResultCallback
+from gemini_api import generate_playlist_search_query
 import producer_consumer as pc
 from timing import Stopwatch
 
@@ -17,15 +17,17 @@ def _chunk_list(data: List, size: int) -> List[List]:
 class TrackListCompiler:
     """Compiles a master track list using a three-stage, concurrent pipeline architecture."""
 
-    def __init__(self, spotify_user_access: Spotify, target_features: Optional[ReccoTrackFeatures], spotify_client: SpotifyAPIClient = spotify_api_client, recco_client: ReccoBeatsAPIClient = recco_api_client):
+    def __init__(self, spotify_user_access: Spotify, mood: Optional[str], activity: Optional[str], target_features: Optional[ReccoTrackFeatures], spotify_client: SpotifyAPIClient = spotify_api_client, recco_client: ReccoBeatsAPIClient = recco_api_client):
         self.sp = spotify_user_access
+        self.mood = mood
+        self.activity = activity
         self.target_features = target_features
         self.spotify_client = spotify_client
         self.recco_client = recco_client
 
         # Final data collection and state
         self.track_data_points: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = []
-        self.seen_track_ids: Set[SpotifyTrackID] = set()
+        self.seen_tracks: Set[str] = set()
         self.seen_tracks_lock = asyncio.Lock()
 
         # Pipeline 1: Processes primary tracks (e.g., top tracks, saved tracks)
@@ -46,9 +48,9 @@ class TrackListCompiler:
         new_tracks: List[SpotifyTrack] = []
         async with self.seen_tracks_lock:
             for track in tracks:
-                track_id = SpotifyTrackID(track.id)
-                if track_id not in self.seen_track_ids:
-                    self.seen_track_ids.add(track_id)
+                track_key = f"{track.name}|{",".join(map(lambda a: a.name, track.artists))}"
+                if track_key not in self.seen_tracks:
+                    self.seen_tracks.add(track_key)
                     new_tracks.append(track)
         
         for track in new_tracks:
@@ -71,13 +73,13 @@ class TrackListCompiler:
 
     def _create_recommended_track_producer(self, seed_ids: List[SpotifyTrackID]) -> pc.ProduceBatchCallback:
         async def recommended_track_producer():
-            recco_tracks = await self.recco_client.get_spotify_track_recommendations(seed_ids, self.target_features, limit=40)
+            recco_tracks = await self.recco_client.get_spotify_track_recommendations(seed_ids, None, limit=40)
             async with self.seen_tracks_lock:
                 unseen_recco_tracks = []
                 for track in recco_tracks:
                     spotify_id = track.extract_spotify_id()
-                    if spotify_id and spotify_id not in self.seen_track_ids:
-                        self.seen_track_ids.add(spotify_id)
+                    if spotify_id and spotify_id not in self.seen_tracks:
+                        self.seen_tracks.add(spotify_id)
                         unseen_recco_tracks.append(track)
             
             for track in unseen_recco_tracks:
@@ -86,7 +88,9 @@ class TrackListCompiler:
 
     def _create_playlists_tracks_producer(self, limit: int, track_limit: int = 50) -> pc.ProduceBatchCallback:
         async def playlists_producer():
-            playlists = await self.spotify_client.search_playlist(self.sp, "Chill Workout", limit=10)
+            playlist_search_query = await generate_playlist_search_query(self.target_features, self.mood, self.activity)
+            print("playlist_search_query", playlist_search_query)
+            playlists = await self.spotify_client.search_playlist(self.sp, playlist_search_query, limit=10)
             producers = [self._create_single_playlist_tracks_producer(p.id, track_limit) for p in playlists[:limit]]
             await self.primary_tracks_pc.add_producers(producers)
         return playlists_producer
@@ -151,12 +155,18 @@ class TrackListCompiler:
             self.feature_fetch_pc.start()
         )
         
+        # Used for small scale testing
+        # initial_producers = [
+        #     self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=50, time_range="medium_term"), rec_batches=0),
+        # ]
+        
         # Add initial producers. They will dynamically add more producers to other pipelines.
         initial_producers = [
-            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=100, time_range="medium_term"), rec_batches=10),
-            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=100, time_range="short_term"), rec_batches=10),
-            self._create_primary_track_producer(self.spotify_client.get_saved_tracks(self.sp, limit=100), rec_batches=10),
-            self._create_playlists_tracks_producer(limit=10, track_limit=100)
+            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=100, time_range="long_term"), rec_batches=2),
+            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=200, time_range="medium_term"), rec_batches=2),
+            self._create_primary_track_producer(self.spotify_client.get_top_tracks(self.sp, limit=200, time_range="short_term"), rec_batches=2),
+            self._create_primary_track_producer(self.spotify_client.get_saved_tracks(self.sp, limit=100), rec_batches=2),
+            self._create_playlists_tracks_producer(limit=3, track_limit=30)
         ]
         await self.primary_tracks_pc.add_producers(initial_producers)
         
@@ -179,6 +189,8 @@ async def test_track_compiler():
     _, algorhythms_account = await get_spotify_clients()
     track_compiler = TrackListCompiler(
         spotify_user_access=algorhythms_account,
+        mood=None,
+        activity=None,
         target_features=None
     )
 

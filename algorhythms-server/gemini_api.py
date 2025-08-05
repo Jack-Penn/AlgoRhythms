@@ -3,12 +3,13 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
-from typing import List, cast
+from typing import List, Optional, cast
 import asyncio
 from PIL import Image
 from io import BytesIO
 import base64
 from recco_beats import ReccoTrackFeatures
+from spotify_api import SpotifyTrack
 
 # Load environment variables
 load_dotenv(dotenv_path='./secrets.env')
@@ -143,9 +144,147 @@ async def generate_target_features(mood: str, activity: str) -> ReccoTrackFeatur
     
     # Handle response
     if response.parsed:
-        return cast(ReccoTrackFeatures, response.parsed)
+        features = cast(ReccoTrackFeatures, response.parsed)
+        # normalization
+        features.loudness = features.loudness / -60
+        features.tempo = features.tempo / -250
+        return features
     else:
         raise ValueError(f"Failed to parse Gemini response: {response.text}")
+
+async def generate_playlist_search_query(target_features: Optional[ReccoTrackFeatures], mood: Optional[str], activity: Optional[str]) -> str:
+    """
+    Generates a relevant playlist search query based on target features and optional context.
+
+    Args:
+        target_features: TargetFeatures object with audio characteristics
+        mood: Optional mood description (e.g., "happy", "melancholic")
+        activity: Optional activity description (e.g., "working out", "studying")
+
+    Returns:
+        str: Search query optimized for finding relevant playlists
+    """
+
+    # Build context for the AI prompt
+    context_parts = []
+    if mood:
+        context_parts.append(f"Mood: {mood}")
+    if activity:
+        context_parts.append(f"Activity: {activity}")
+
+    context = ", ".join(context_parts) if context_parts else "General listening"
+
+    if target_features is None:
+        return context
+
+    # Use the same feature definitions from the original code
+    feature_definitions = """
+    - acousticness (0.0-1.0): Confidence measure of acoustic sounds vs electronic elements.
+      Higher values (1.0) = more natural/organic sounds, lower values (0.0) = more synthetic.
+
+    - danceability (0.0-1.0): How suitable for dancing based on rhythm, beat, and tempo.
+      0.0 = not danceable, 1.0 = highly danceable. Considers beat strength and consistency.
+
+    - energy (0.0-1.0): Perceived intensity and activity level.
+      0.0 = calm/relaxed, 1.0 = intense/energetic. Based on dynamic range, loudness, and entropy.
+
+    - instrumentalness (0.0-1.0): Predicts absence of vocals.
+      >0.5 = likely instrumental, near 1.0 = high confidence no vocals. "Ooh/aah" = instrumental.
+
+    - liveness (0.0-1.0): Probability of live audience presence.
+      >0.8 = strong likelihood of live recording, 0.0 = studio production.
+
+    - loudness (-60 to 0 dB): Overall average loudness in decibels (dB).
+      Typical range: -60dB (quiet) to 0dB (loud). Note: dB is logarithmic scale.
+
+    - speechiness (0.0-1.0): Presence of spoken words.
+      <0.33 = music, 0.33-0.66 = mixed (e.g., rap), >0.66 = primarily speech (podcast/audiobook).
+
+    - tempo (BPM): Estimated beats per minute (actual value).
+      Typical range: 60-200 BPM. 60 = slow, 120 = moderate, 200 = very fast.
+
+    - valence (0.0-1.0): Emotional positivity.
+      0.0 = sad/depressing, 1.0 = happy/euphoric. Musical positiveness measure.
+    """
+
+    # Create a detailed prompt for Gemini using all 9 audio features
+    prompt = f"""
+    Generate a concise playlist search query (2-4 words) to find relevant playlists on Spotify.
+
+    Use the following context and TargetAudio Features as input
+    
+    Context: {context}
+
+    Target Audio Features:
+    - Acousticness: {target_features.acousticness:.2f}
+    - Danceability: {target_features.danceability:.2f}
+    - Energy: {target_features.energy:.2f}
+    - Instrumentalness: {target_features.instrumentalness:.2f}
+    - Liveness: {target_features.liveness:.2f}
+    - Loudness: {target_features.loudness} dB
+    - Speechiness: {target_features.speechiness:.2f}
+    - Tempo: {target_features.tempo} BPM
+    - Valence: {target_features.valence:.2f}
+
+    Audio Features:
+    {feature_definitions}
+
+    Examples of good playlist queries based on feature combinations:
+    - High energy + high valence + fast tempo → "Workout Pump Up"
+    - Low energy + low valence + high acousticness → "Sad Acoustic"
+    - High danceability + medium energy + low speechiness → "Dance Pop Hits"
+    - High acousticness + medium valence + high instrumentalness → "Indie Instrumental"
+    - Low valence + slow tempo + high acousticness → "Melancholic Ballads"
+    - High speechiness + medium energy → "Hip Hop Rap"
+    - High instrumentalness + low energy → "Ambient Instrumental"
+    - High liveness + high energy → "Live Concert"
+
+    Return only the search query, nothing else. Make it descriptive but concise.
+    """
+
+    try:
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.5-flash-lite-preview-06-17",
+            contents=prompt,
+        )
+
+        if response.text:
+            query = response.text.strip().strip('"').strip("'")
+            # Ensure it's not too long
+            if len(query) > 50:
+                query = query[:50].rsplit(' ', 1)[0]  # Cut at word boundary
+            return query
+        else:
+            # Fallback to rule-based generation
+            return context
+
+    except Exception as e:
+        print(f"Error generating playlist query with Gemini: {e}")
+        return context
+
+async def generate_playlist_name(mood: str, activity: str, tracks: List[SpotifyTrack]) -> str:
+    def format_track(track: SpotifyTrack):
+        return f"track.name by {", ".join(map(lambda artist: artist.name, track.artists))}"
+
+    prompt = f'''
+        Genearate a fun name for a music playlist. Please include at least one or two emojis. Respond with just the text for the playlist name
+        
+        Here are some details about the playlist
+            mood: {mood}
+            activity: {activity}
+            songs:
+            {"\n".join(map(format_track, tracks))}
+    '''
+    response = await asyncio.to_thread(
+        client.models.generate_content,
+        model="gemini-2.5-flash-lite-preview-06-17",
+        contents=prompt,
+    )
+
+    if response.text:
+        return response.text
+    return ""
 
 async def generate_emoji(term: str) -> str:
     import emoji
@@ -298,6 +437,10 @@ async def test_image():
             print(f"Could not automatically display the image: {e}")
             print(f"Please open '{file_name}' manually to view it.")
 
+async def test_generate_playlist_name():
+    playlist_name = await generate_playlist_name(mood="Happy", activity="Coding", tracks=[])
+    print(f"Test Playlist Name: {playlist_name}")
+
 # Run the async main function
 if __name__ == "__main__":
-    asyncio.run(test_image())
+    asyncio.run(test_generate_playlist_name())

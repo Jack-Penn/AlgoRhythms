@@ -1,6 +1,7 @@
 import heapq
 import itertools
 from typing import Generic, List, Mapping, Optional, Sequence, Tuple, TypeVar
+from brute_force import brute_force_nearest
 
 # --- Type Aliases ---
 Number = int | float
@@ -21,12 +22,15 @@ class KDNode(Generic[Data, Point]):
 class KDTree(Generic[Data, Point]):
     root: Optional[KDNode[Data, Point]]
     k: int
+    n: int
 
     def __init__(self, data_points: Sequence[Tuple[Data, Point]]) -> None:
         if not data_points:
             self.root = None
             self.k = 0
             return
+        
+        self.n = len(data_points)
         
         # Get all possible keys from the first point.
         all_keys = [PointKey(k) for k in data_points[0][1]]
@@ -126,19 +130,34 @@ class KDTree(Generic[Data, Point]):
             
         return sorted_points
 
-def brute_force_nearest(data_points: List[DataPoint[Data, Point]], target: Point, limit: int) -> List[Data]:
-    """Calculates nearest neighbors by checking every point."""
-    def euclidean_squared(p1: Point, p2: Point):
-        return sum((p1[k] - p2[k])**2 for k in p1)
-    
-    # Calculate distance for all points
-    distances: List[Tuple[Number, Data]] = [(euclidean_squared(point, target), data) for data, point in data_points]
-    
-    # Sort by distance
-    distances.sort(key=lambda x: x[0])
-    
-    # Return the top `limit` points
-    return [data for dist, data in distances[:limit]]
+    def calc_height(self) -> int:
+        """Calculates the height of the KD-Tree."""
+        def _height(node: Optional[KDNode]) -> int:
+            if node is None:
+                return 0  # Height of an empty tree/subtree
+            return 1 + max(_height(node.left), _height(node.right))
+
+        return _height(self.root)
+
+    def calc_density(self) -> float:
+        """
+        Calculates the density of the KD-Tree
+        Density is the ratio of actual nodes to the maximum possible nodes for a
+        binary tree of the same height. A perfectly balanced, full tree has a
+        density of 1.0. An empty tree has a density of 0.0.
+        """
+        if self.n == 0:
+            return 0.0
+        
+        h = self.calc_height()
+        # Max nodes in a binary tree of height h is 2^(h+1) - 1
+        max_nodes = (2**h) - 1
+        
+        if max_nodes == 0:
+            return 1.0 if self.n > 0 else 0.0
+            
+        return self.n / max_nodes
+
 
 # --- Test execution ---
 def run_tests():

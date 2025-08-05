@@ -7,20 +7,6 @@ const LoadingPlaylist = () => {
 	const navigate = useNavigate();
 	const { tasks, status, finalData } = usePlaylistGeneration();
 
-	useEffect(() => {
-		// When the stream is completed and we have the final data, navigate away
-		if (status === "completed" && finalData) {
-			console.log("Recieved Final Data", finalData);
-			// const playlistId = finalData.kd_tree_playlist?.tracks[0]?.id; // Example of getting an ID
-			// // Use a timeout to let the user see the final completed state
-			// setTimeout(() => {
-			// 	// TODO: Navigate to the actual playlist view page
-			// 	// navigate(`/view-playlist/${playlistId}`);
-			// 	console.log("Navigating to final playlist...", finalData);
-			// }, 1500);
-		}
-	}, [status, finalData, navigate]);
-
 	// Calculate progress percentage
 	const taskList = Object.values(tasks);
 	const completed = taskList.filter((t) => t.status === "completed").length;
@@ -55,7 +41,9 @@ const LoadingPlaylist = () => {
 			{/* Content Section */}
 			<div className='p-8'>
 				<p className='text-center text-gray-700 mb-6'>
-					Finding the perfect songs for you...
+					{status === "completed"
+						? "Your playlist is ready!"
+						: "Finding the perfect songs for you..."}
 				</p>
 
 				{/* Progress Bar */}
@@ -120,6 +108,18 @@ const LoadingPlaylist = () => {
 						))}
 					</ul>
 				</div>
+
+				{/* View Playlist Button */}
+				{status === "completed" && finalData && (
+					<div className='mt-8 text-center'>
+						<button
+							onClick={() => navigate("/results")}
+							className='px-8 py-3 bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ease-in-out cursor-pointer'
+						>
+							View Your Playlist!
+						</button>
+					</div>
+				)}
 			</div>
 		</div>
 	);

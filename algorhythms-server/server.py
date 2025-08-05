@@ -158,7 +158,7 @@ async def generate_playlist_endpoint(
         _, sp = await get_spotify_clients()
 
     return StreamingResponse(
-        playlist_task_generator(fastapi_request, sp, request.target_features, length),
+        playlist_task_generator(fastapi_request, sp, mood, activity, request.target_features, length),
         media_type="application/x-ndjson",  # Newline-delimited JSON
         headers={"Cache-Control": "no-cache"}
     )
