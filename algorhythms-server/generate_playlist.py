@@ -109,12 +109,11 @@ async def get_k_closest_songs(deps: DependencyDict) -> TaskResult:
     track_list: List[Tuple[SpotifyTrack, ReccoTrackFeatures]] = deps["track_data_points"]
     track_data_points: List[Tuple[Dict,Dict[str, float]]] = [(track.model_dump(), features.model_dump()) for track, features in track_list]
     adjMatrix:Adj_Matrix = deps["adj_matrix"]
-    target_features = deps['target_features']
+    target_features_dict = deps['target_features']
+    target_features = adjMatrix.song_to_vector(target_features_dict.model_dump(), adjMatrix.feature_keys)
     playlist_length = deps["playlist_length"]
     # Step 1: get that center index
     center_index = adjMatrix.find_closest_song(track_data_points, target_features, adjMatrix.feature_keys)
-
-
     # Step 2: get k closest songs to that
     neighbor_indices = adjMatrix.get_k_closest_songs( center_index, playlist_length)
     list = [track_data_points[i][0] for i in neighbor_indices]
@@ -304,7 +303,7 @@ TASK_DEFINITIONS: List[Task] = [
         label="Compiling Results", 
         description="Putting all the pieces together and preparing the final playlist for you to enjoy.",
         function=compile_final_results_task, 
-        dependencies=["create_playlist", "brute_force_nearest_neighbors", "build_kd_tree", "find_kd_tree_nearest_neighbors", "build_ball_tree", "find_ball_tree_nearest_neighbors"]
+        dependencies=["create_playlist", "brute_force_nearest_neighbors", "build_kd_tree", "find_kd_tree_nearest_neighbors", "build_ball_tree", "find_ball_tree_nearest_neighbors", "build_adj_matrix", "get_k_closest_songs"]
     )
 ]
 

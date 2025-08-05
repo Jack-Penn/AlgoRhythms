@@ -1,3 +1,4 @@
+import itertools
 from math import sqrt
 from typing import List, Tuple, Dict
 import heapq
@@ -43,6 +44,7 @@ class Adj_Matrix:
         return closest_index
 
     def get_k_closest_songs(self, source_index: int, k: int) -> List[int]:
-        distances = [(dist, i) for i, dist in enumerate(self.matrix[source_index]) if i != source_index]
+        tie_breaker = itertools.count()
+        distances = [(dist, tie_breaker, i) for i, dist in enumerate(self.matrix[source_index]) if i != source_index]
         closest = heapq.nsmallest(k, distances, key= lambda n: n[0])
-        return [i for _, i in closest]
+        return [i for _, _, i in closest]
