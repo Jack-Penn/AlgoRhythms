@@ -86,20 +86,46 @@ export const generatePlaylistStream = async (
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();
 
-	while (true) {
-		const { value, done } = await reader.read();
-		if (done) break;
+	// Buffer to accumulate incomplete chunks
+	let buffer = "";
 
-		const chunkString = decoder.decode(value);
-		// The server sends chunks separated by double newlines
-		const chunks = chunkString.split("\n\n").filter(Boolean);
-		for (const chunk of chunks) {
-			try {
-				const data = JSON.parse(chunk);
-				onUpdate(data);
-			} catch (error) {
-				console.error("Error parsing stream chunk:", chunk, error);
+	try {
+		while (true) {
+			const { value, done } = await reader.read();
+			if (done) break;
+
+			// Decode the chunk and add it to our buffer
+			buffer += decoder.decode(value, { stream: true });
+
+			// Split by double newlines to find complete messages
+			const messages = buffer.split("\n\n");
+
+			// The last element might be incomplete, so keep it in the buffer
+			buffer = messages.pop() || "";
+
+			// Process all complete messages
+			for (const message of messages) {
+				if (message.trim()) {
+					try {
+						const data = JSON.parse(message);
+						onUpdate(data);
+					} catch (error) {
+						console.error("Error parsing stream chunk:", message, error);
+					}
+				}
 			}
 		}
+
+		// Process any remaining data in the buffer
+		if (buffer.trim()) {
+			try {
+				const data = JSON.parse(buffer);
+				onUpdate(data);
+			} catch (error) {
+				console.error("Error parsing final chunk:", buffer, error);
+			}
+		}
+	} finally {
+		reader.releaseLock();
 	}
 };

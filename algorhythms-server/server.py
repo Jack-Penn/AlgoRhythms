@@ -157,6 +157,10 @@ async def generate_playlist_endpoint(
     else:
         _, sp = await get_spotify_clients()
 
+    # normalization
+    request.target_features.loudness = request.target_features.loudness / -60
+    request.target_features.tempo = request.target_features.tempo / -250
+
     return StreamingResponse(
         playlist_task_generator(fastapi_request, sp, mood, activity, request.target_features, length),
         media_type="application/x-ndjson",  # Newline-delimited JSON
