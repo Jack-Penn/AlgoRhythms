@@ -279,169 +279,137 @@ export default function CreatePlaylist() {
 
 					{showAdvanced && (
 						<div className='bg-white rounded-lg border border-gray-200 overflow-hidden'>
-							{/* Tab Navigation */}
-							<div className='flex border-b border-gray-200'>
-								<button
-									className={`flex-1 py-3 font-medium text-center cursor-pointer ${
-										activeTab === "features"
-											? "text-blue-600 border-b-2 border-blue-600"
-											: "text-gray-500"
-									}`}
-									onClick={() => setActiveTab("features")}
-								>
-									Target Features
-								</button>
-								<button
-									className={`flex-1 py-3 font-medium text-center cursor-pointer ${
-										activeTab === "weights"
-											? "text-blue-600 border-b-2 border-blue-600"
-											: "text-gray-500"
-									}`}
-									onClick={() => setActiveTab("weights")}
-								>
-									Feature Weights
-								</button>
-							</div>
-
-							{/* Tab Content */}
 							<div className='p-4'>
-								{activeTab === "features" && (
-									<div className='space-y-6'>
-										<div className='text-sm text-gray-500 mb-4 flex items-center'>
-											<SparklesIcon className='w-4 h-4 mr-1 text-purple-500' />
-											{generatedTargetFeatures.isFetching
-												? "Generating recommended features..."
-												: "Adjust the ideal song characteristics"}
-										</div>
-
-										<FeatureGroup
-											title='Mood & Energy ⚡'
-											features={[
-												{
-													key: "valence",
-													label: "Valence",
-													description: "Musical positiveness (0=sad, 1=happy)",
-													min: 0,
-													max: 1,
-													step: 0.01,
-												},
-												{
-													key: "energy",
-													label: "Energy",
-													description:
-														"Intensity and liveliness (0=calm, 1=energetic)",
-													min: 0,
-													max: 1,
-													step: 0.01,
-												},
-												{
-													key: "danceability",
-													label: "Danceability",
-													description:
-														"Suitability for dancing (0=not danceable, 1=highly danceable)",
-													min: 0,
-													max: 1,
-													step: 0.01,
-												},
-											]}
-											targetFeatures={targetFeatures}
-											onChange={handleTargetFeatureChange}
-											disabled={!isTargetFeaturesGenerated}
-										/>
-
-										<FeatureGroup
-											title='Sound Characteristics 🎵'
-											features={[
-												{
-													key: "acousticness",
-													label: "Acousticness",
-													description:
-														"Natural vs electronic sounds (0=electronic, 1=acoustic)",
-													min: 0,
-													max: 1,
-													step: 0.01,
-												},
-												{
-													key: "instrumentalness",
-													label: "Instrumentalness",
-													description:
-														"Presence of vocals (0=vocal, 1=instrumental)",
-													min: 0,
-													max: 1,
-													step: 0.01,
-												},
-											]}
-											targetFeatures={targetFeatures}
-											onChange={handleTargetFeatureChange}
-											disabled={!isTargetFeaturesGenerated}
-										/>
-
-										<FeatureGroup
-											title='Technical Properties ⚙️'
-											features={[
-												{
-													key: "tempo",
-													label: "Tempo",
-													description: "Speed of the track (BPM)",
-													min: 0,
-													max: 250,
-													step: 1,
-													units: " BPM",
-												},
-												{
-													key: "loudness",
-													label: "Loudness",
-													description: "Overall volume (dB)",
-													min: -60,
-													max: 0,
-													step: 0.1,
-													units: " dB",
-												},
-											]}
-											targetFeatures={targetFeatures}
-											onChange={handleTargetFeatureChange}
-											disabled={!isTargetFeaturesGenerated}
-										/>
+								<div className='space-y-6'>
+									<div className='text-sm text-gray-500 mb-4 flex items-center'>
+										{generatedTargetFeatures.isFetching ? (
+											<>
+												<svg
+													className='animate-spin -ml-1 mr-2 h-4 w-4 text-purple-500'
+													xmlns='http://www.w3.org/2000/svg'
+													fill='none'
+													viewBox='0 0 24 24'
+												>
+													<circle
+														className='opacity-25'
+														cx='12'
+														cy='12'
+														r='10'
+														stroke='currentColor'
+														strokeWidth='4'
+													></circle>
+													<path
+														className='opacity-75'
+														fill='currentColor'
+														d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+													></path>
+												</svg>
+												<span>Generating recommended features...</span>
+											</>
+										) : (
+											<>
+												<SparklesIcon className='w-4 h-4 mr-1 text-purple-500' />
+												<span>Adjust the ideal song characteristics</span>
+											</>
+										)}
 									</div>
-								)}
 
-								{activeTab === "weights" && (
-									<div className='space-y-6'>
-										<div className='text-sm text-gray-500 mb-4'>
-											🎚️Adjust how much each feature influences recommendations
-										</div>
-
-										<WeightGroup
-											title='Audio Feature Importance'
-											weights={[
-												{ key: "valence_weight", label: "Valence" },
-												{ key: "energy_weight", label: "Energy" },
-												{ key: "danceability_weight", label: "Danceability" },
-												{ key: "acousticness_weight", label: "Acousticness" },
-												{
-													key: "instrumentalness_weight",
-													label: "Instrumentalness",
-												},
-												{ key: "tempo_weight", label: "Tempo" },
-											]}
-											currentWeights={weights}
-											onChange={handleWeightChange}
-										/>
-
-										<WeightGroup
-											title='Algorithm Parameters'
-											weights={[
-												{
-													key: "personalization_weight",
-													label: "Personalization",
-												},
-												{ key: "cohesion_weight", label: "Cohesion" },
-											]}
-											currentWeights={weights}
-											onChange={handleWeightChange}
-										/>
-									</div>
-								)}
+									<FeatureGroup
+										title='Mood & Energy ⚡'
+										features={[
+											{
+												key: "valence",
+												label: "Valence",
+												description: "Musical positiveness (0=sad, 1=happy)",
+												min: 0,
+												max: 1,
+												step: 0.01,
+											},
+											{
+												key: "energy",
+												label: "Energy",
+												description:
+													"Intensity and liveliness (0=calm, 1=energetic)",
+												min: 0,
+												max: 1,
+												step: 0.01,
+											},
+											{
+												key: "danceability",
+												label: "Danceability",
+												description:
+													"Suitability for dancing (0=not danceable, 1=highly danceable)",
+												min: 0,
+												max: 1,
+												step: 0.01,
+											},
+										]}
+										targetFeatures={targetFeatures}
+										onChange={handleTargetFeatureChange}
+										disabled={
+											generatedTargetFeatures.isFetching ||
+											!isTargetFeaturesGenerated
+										}
+									/>
+									<FeatureGroup
+										title='Sound Characteristics 🎵'
+										features={[
+											{
+												key: "acousticness",
+												label: "Acousticness",
+												description:
+													"Natural vs electronic sounds (0=electronic, 1=acoustic)",
+												min: 0,
+												max: 1,
+												step: 0.01,
+											},
+											{
+												key: "instrumentalness",
+												label: "Instrumentalness",
+												description:
+													"Presence of vocals (0=vocal, 1=instrumental)",
+												min: 0,
+												max: 1,
+												step: 0.01,
+											},
+										]}
+										targetFeatures={targetFeatures}
+										onChange={handleTargetFeatureChange}
+										disabled={
+											generatedTargetFeatures.isFetching ||
+											!isTargetFeaturesGenerated
+										}
+									/>
+									<FeatureGroup
+										title='Technical Properties ⚙️'
+										features={[
+											{
+												key: "tempo",
+												label: "Tempo",
+												description: "Speed of the track (BPM)",
+												min: 0,
+												max: 250,
+												step: 1,
+												units: " BPM",
+											},
+											{
+												key: "loudness",
+												label: "Loudness",
+												description: "Overall volume (dB)",
+												min: -60,
+												max: 0,
+												step: 0.1,
+												units: " dB",
+											},
+										]}
+										targetFeatures={targetFeatures}
+										onChange={handleTargetFeatureChange}
+										disabled={
+											generatedTargetFeatures.isFetching ||
+											!isTargetFeaturesGenerated
+										}
+									/>
+								</div>
 							</div>
 						</div>
 					)}
