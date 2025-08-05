@@ -46,5 +46,27 @@ class Adj_Matrix:
     def get_k_closest_songs(self, source_index: int, k: int) -> List[int]:
         tie_breaker = itertools.count()
         distances = [(dist, tie_breaker, i) for i, dist in enumerate(self.matrix[source_index]) if i != source_index]
-        closest = heapq.nsmallest(k, distances, key= lambda n: n[0])
+        closest = self.ksmallest(k, distances, key= lambda n: n[0])
         return [i for _, _, i in closest]
+
+    def ksmallest(self,k, distances, key):
+        if k <= 0:
+            return []
+
+
+        max_heap = []
+        for item in distances:
+            val = key(item)
+            if len(max_heap) < k:
+
+                heapq.heappush(max_heap, (-val, item))
+            else:
+                # If item is smaller than largest in heap then replace
+                if val < -max_heap[0][0]:
+                    heapq.heapreplace(max_heap, (-val, item))
+
+
+        result = [item for (_, item) in max_heap]
+
+        result.sort(key=key)
+        return result
