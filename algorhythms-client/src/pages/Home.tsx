@@ -1,4 +1,5 @@
 const Home = () => {
+	window.location.href = "http://[::1]:5173/login";
 	return (
 		<div>
 			<h1>Home</h1>
